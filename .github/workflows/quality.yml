@@ -1,0 +1,32 @@
+name: Qualidade
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: revenda
+          POSTGRES_PASSWORD: test_only_password
+          POSTGRES_DB: revenda_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U revenda -d revenda_test"
+          --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://revenda:test_only_password@localhost:5432/revenda_test
+      TEST_DATABASE_URL: postgresql://revenda:test_only_password@localhost:5432/revenda_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run db:migrate
+      - run: npm run typecheck
+      - run: npm run lint -- --max-warnings=0
+      - run: npm test
+      - run: npm run build

@@ -1,0 +1,438 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id             String              @id @default(uuid())
+  name           String
+  ownerName      String
+  cnpj           String              @unique
+  state          String              @default("SP")
+  city           String
+  phone          String?
+  email          String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  memberships    Membership[]
+  products       Product[]
+  customers      Customer[]
+  suppliers      Supplier[]
+  brands         Brand[]
+  categories     Category[]
+  sales          Sale[]
+  purchases      Purchase[]
+  payments       Payment[]
+  expenses       Expense[]
+  movements      InventoryMovement[]
+  auditLogs      AuditLog[]
+  fiscalSettings FiscalSettings?
+}
+
+model Membership {
+  id             String       @id @default(uuid())
+  userId         String       @unique
+  organizationId String
+  role           String       @default("OWNER")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model Brand {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  products       Product[]
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, id])
+}
+
+model Category {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  products       Product[]
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, id])
+}
+
+model Product {
+  id             String              @id @default(uuid())
+  organizationId String
+  name           String
+  sku            String
+  barcode        String?
+  description    String?
+  imageUrl       String?
+  brandId        String?
+  categoryId     String?
+  brand          Brand?              @relation(fields: [organizationId, brandId], references: [organizationId, id])
+  category       Category?           @relation(fields: [organizationId, categoryId], references: [organizationId, id])
+  referenceCost  Decimal             @db.Decimal(18, 4)
+  averageCost    Decimal             @default(0) @db.Decimal(18, 4)
+  salePrice      Decimal             @db.Decimal(18, 2)
+  stock          Int                 @default(0)
+  reserved       Int                 @default(0)
+  minimumStock   Int                 @default(0)
+  active         Boolean             @default(true)
+  ncm            String?
+  fiscalData     Json?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  movements      InventoryMovement[]
+  purchaseItems  PurchaseItem[]
+  saleItems      SaleItem[]
+  lots           StockLot[]
+
+  @@unique([organizationId, sku])
+  @@unique([organizationId, id])
+  @@index([organizationId, active, name])
+}
+
+model Supplier {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  document       String?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  purchases      Purchase[]
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, id])
+}
+
+model Purchase {
+  id                  String         @id @default(uuid())
+  organizationId      String
+  supplierId          String
+  supplier            Supplier       @relation(fields: [organizationId, supplierId], references: [organizationId, id])
+  organization        Organization   @relation(fields: [organizationId], references: [id])
+  date                DateTime
+  total               Decimal        @db.Decimal(18, 2)
+  recipientDocument   String?
+  accessKey           String?
+  documentationStatus String         @default("NOT_PROVIDED")
+  idempotencyKey      String
+  requestHash         String
+  createdAt           DateTime       @default(now())
+  items               PurchaseItem[]
+  payments            Payment[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@unique([organizationId, id])
+  @@index([organizationId, date])
+}
+
+model PurchaseItem {
+  id             String   @id @default(uuid())
+  organizationId String
+  purchaseId     String
+  productId      String
+  purchase       Purchase @relation(fields: [organizationId, purchaseId], references: [organizationId, id])
+  product        Product  @relation(fields: [organizationId, productId], references: [organizationId, id])
+  quantity       Int
+  unitCost       Decimal  @db.Decimal(18, 4)
+  total          Decimal  @db.Decimal(18, 2)
+}
+
+model StockLot {
+  id             String    @id @default(uuid())
+  organizationId String
+  productId      String
+  code           String
+  expiresAt      DateTime?
+  quantity       Int
+  product        Product   @relation(fields: [organizationId, productId], references: [organizationId, id])
+
+  @@unique([organizationId, productId, code])
+}
+
+model InventoryMovement {
+  id             String       @id @default(uuid())
+  organizationId String
+  productId      String
+  type           String
+  quantity       Int
+  unitCost       Decimal      @db.Decimal(18, 4)
+  referenceId    String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  product        Product      @relation(fields: [organizationId, productId], references: [organizationId, id])
+
+  @@unique([organizationId, type, referenceId, productId])
+  @@index([organizationId, createdAt])
+}
+
+model Customer {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  phone          String?
+  document       String?
+  email          String?
+  notes          String?
+  fiscalAddress  Json?
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  sales          Sale[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, name])
+}
+
+model Sale {
+  id                 String          @id @default(uuid())
+  organizationId     String
+  customerId         String?
+  customer           Customer?       @relation(fields: [organizationId, customerId], references: [organizationId, id])
+  organization       Organization    @relation(fields: [organizationId], references: [id])
+  subtotal           Decimal         @db.Decimal(18, 2)
+  discount           Decimal         @db.Decimal(18, 2)
+  total              Decimal         @db.Decimal(18, 2)
+  costTotal          Decimal         @db.Decimal(18, 2)
+  status             String          @default("CONFIRMED")
+  fulfillmentMode    String          @default("IMMEDIATE")
+  fulfillmentStatus  String          @default("COMPLETED")
+  completedAt        DateTime?       @default(now())
+  expectedDate       String?
+  address            String?
+  deliveryNotes      String?
+  agreementNotes     String?
+  version            Int             @default(1)
+  installments       Installment[]
+  idempotencyKey     String
+  requestHash        String
+  createdAt          DateTime        @default(now())
+  cancelledAt        DateTime?
+  cancellationReason String?
+  items              SaleItem[]
+  payments           Payment[]
+  expenses           Expense[]
+  fiscalDocument     FiscalDocument?
+
+  @@unique([organizationId, idempotencyKey])
+  @@unique([organizationId, id])
+  @@index([organizationId, createdAt])
+}
+
+model Installment {
+  id             String   @id @default(uuid())
+  organizationId String
+  saleId         String
+  position       Int
+  amount         Decimal  @db.Decimal(18, 2)
+  received       Decimal  @default(0) @db.Decimal(18, 2)
+  dueDate        String?
+  sale           Sale     @relation(fields: [organizationId, saleId], references: [organizationId, id])
+
+  @@unique([organizationId, saleId, position])
+}
+
+model SaleItem {
+  id             String  @id @default(uuid())
+  organizationId String
+  saleId         String
+  productId      String
+  productName    String
+  quantity       Int
+  unitPrice      Decimal @db.Decimal(18, 2)
+  unitCost       Decimal @db.Decimal(18, 4)
+  total          Decimal @db.Decimal(18, 2)
+  sale           Sale    @relation(fields: [organizationId, saleId], references: [organizationId, id])
+  product        Product @relation(fields: [organizationId, productId], references: [organizationId, id])
+}
+
+model Payment {
+  id             String       @id @default(uuid())
+  organizationId String
+  saleId         String?
+  purchaseId     String?
+  expenseId      String?
+  direction      String
+  method         String
+  amount         Decimal      @db.Decimal(18, 2)
+  description    String
+  idempotencyKey String
+  requestHash    String
+  occurredAt     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  sale           Sale?        @relation(fields: [organizationId, saleId], references: [organizationId, id])
+  purchase       Purchase?    @relation(fields: [organizationId, purchaseId], references: [organizationId, id])
+  expense        Expense?     @relation(fields: [organizationId, expenseId], references: [organizationId, id])
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, occurredAt])
+}
+
+model Expense {
+  id             String       @id @default(uuid())
+  organizationId String
+  saleId         String?
+  description    String
+  amount         Decimal      @db.Decimal(18, 2)
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  sale           Sale?        @relation(fields: [organizationId, saleId], references: [organizationId, id])
+  payments       Payment[]
+
+  @@unique([organizationId, id])
+}
+
+model FiscalDocument {
+  id             String   @id @default(uuid())
+  organizationId String
+  saleId         String   @unique
+  sale           Sale     @relation(fields: [organizationId, saleId], references: [organizationId, id])
+  model          String?
+  status         String   @default("PENDING")
+  accessKey      String?
+  evidence       String?
+  source         String   @default("ASSISTED")
+  activeRequestId String?
+  requests       FiscalRequest[]
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, saleId])
+  @@unique([organizationId, id])
+  @@index([organizationId, status])
+}
+
+model FiscalRequest {
+  id             String @id @default(uuid())
+  organizationId String
+  documentId     String
+  document       FiscalDocument @relation(fields: [organizationId, documentId], references: [organizationId, id])
+  model          String
+  provider       String @default("ACBR")
+  fiscalSeries   Int?
+  fiscalNumber   Int?
+  environment    String @default("homologacao")
+  reference      String @unique
+  payload        Json
+  requestHash    String
+  status         String @default("READY")
+  providerId     String?
+  accessKey      String?
+  protocol       String?
+  message        String?
+  attempts       Int @default(0)
+  leaseUntil     DateTime?
+  cancelReason   String?
+  cancelAttemptId String?
+  cancelEventId   String?
+  cancelPhase     String?
+  nextPollAt     DateTime @default(now())
+  xmlArchivedAt  DateTime?
+  pdfArchivedAt  DateTime?
+  cancelXmlArchivedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, id])
+  @@index([status, leaseUntil])
+}
+
+model FiscalSettings {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  environment    String       @default("HOMOLOGATION")
+  provider       String       @default("ASSISTED")
+  emitter        Json?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  updatedAt      DateTime     @updatedAt
+}
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  actorId        String
+  type           String
+  description    String
+  referenceId    String?
+  quantity       Int?
+  amount         Decimal?     @db.Decimal(18, 2)
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+}
+
+// Protocolo de comandos. Payloads conflitantes são fatos capturados a reconciliar,
+// não operações comerciais já aplicadas. Sem relação com credenciais do dispositivo.
+model SyncCommand {
+  id               String   @id
+  organizationId   String
+  userId           String
+  contractVersion  Int
+  type             String
+  requestHash      String
+  payload          Json
+  dependencies     Json
+  capturedAt       DateTime
+  receivedAt       DateTime @default(now())
+  status           String   @default("PENDING")
+  result           Json?
+  message          String?
+  leaseUntil       DateTime?
+  attempts         Int      @default(0)
+  updatedAt        DateTime @updatedAt
+
+  @@index([organizationId, userId, status])
+}
+
+model ReminderPreference {
+  organizationId String @id
+  enabled        Boolean @default(false)
+  dayMode        String @default("FIRST")
+  day            Int @default(1)
+  time           String @default("09:00")
+  scope          String @default("ALL")
+  updatedAt      DateTime @updatedAt
+}
+
+model ReminderNotice {
+  id             String @id @default(uuid())
+  organizationId String
+  period         String
+  reviewedAt     DateTime?
+  snoozedUntil   DateTime?
+  createdAt      DateTime @default(now())
+  @@unique([organizationId, period])
+}
+
+model PushSubscription {
+  id             String @id @default(uuid())
+  organizationId String
+  userId         String
+  endpoint       String @unique
+  keys           Json
+  createdAt      DateTime @default(now())
+  jobs           PushJob[]
+}
+
+model PushJob {
+  id             String @id @default(uuid())
+  subscriptionId String
+  noticeId       String
+  status         String @default("PENDING")
+  attempts       Int @default(0)
+  nextAttemptAt  DateTime @default(now())
+  leaseUntil     DateTime?
+  subscription   PushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  @@unique([subscriptionId, noticeId])
+}

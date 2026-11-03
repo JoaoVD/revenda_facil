@@ -1,0 +1,58 @@
+{
+  "name": "revenda-facil",
+  "version": "1.0.0",
+  "description": "Gestão simples e transacional para revendedoras independentes",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write src tests scripts README.md *.ts *.mjs package.json",
+    "test": "vitest run",
+    "test:integration": "vitest run tests/integration.test.ts",
+    "test:e2e": "playwright test",
+    "test:ux": "node scripts/test-daily-ux.mjs && node scripts/test-fiscal-setup.mjs && node scripts/test-login-ux.mjs",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "test:embedded": "node scripts/test-embedded.mjs",
+    "test:orders:browser": "node scripts/test-orders-offline.mjs",
+    "test:orders:e2e": "playwright test tests/e2e/orders-offline.spec.ts"
+  },
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.118.0",
+    "clsx": "^2.1.1",
+    "decimal.js": "^10.6.0",
+    "lucide-react": "^1.66.0",
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14",
+    "@electric-sql/pglite-socket": "^0.2.17",
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.3",
+    "prettier": "^3.9.10",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5",
+    "esbuild": "0.28.2"
+  },
+  "private": true,
+  "overrides": {
+    "deepmerge-ts": "8.0.0"
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+.npm-cache/
+.next/
+.env*
+!.env.example
+coverage/
+test-results/
+playwright-report/
+.local/
+backups/
+Revenda Facil.exe
+*.tsbuildinfo
+*.zip
+artifacts/
+.cache/
