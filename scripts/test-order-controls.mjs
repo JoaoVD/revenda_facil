@@ -57,7 +57,7 @@ await context.route('http://localhost/**', (r) =>
 );
 try {
   await fs.mkdir('artifacts/orders', { recursive: true });
-  for (const width of [1366, 390]) {
+  for (const width of [1366, 320, 390, 430, 740]) {
     for (const type of ['Edit', 'Refund', 'Resolution']) {
       const page = await context.newPage();
       await page.setViewportSize({ width, height: 900 });
@@ -80,6 +80,20 @@ try {
         exact: true,
       });
       await button.waitFor();
+      if (width <= 760) {
+        const dimensions = await page
+          .locator('input:not([type="checkbox"])')
+          .first()
+          .evaluate((input) => ({
+            height: input.getBoundingClientRect().height,
+            font: parseFloat(getComputedStyle(input).fontSize),
+          }));
+        assert(
+          dimensions.height >= 48,
+          'Campo com altura confortável para toque',
+        );
+        assert(dimensions.font >= 16, 'Texto legível sem zoom ao focar');
+      }
       assert.equal(await page.evaluate(() => window.calls?.length || 0), 0);
       if (type === 'Edit') {
         await page.getByLabel('Quantidade de Perfume TEST').fill('3');

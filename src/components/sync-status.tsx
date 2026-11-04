@@ -132,8 +132,17 @@ export function SyncStatus({ userId, organizationId }: Scope) {
           Liberar cópia local nesta sessão
         </button>
       )}
-      <Link href="/operacao">Dados deste aparelho e sincronização →</Link>
-      <Link href="/pendencias">Conferir pendências</Link>
+      <details className="sync-tools">
+        <summary>Opções de sincronização</summary>
+        <div>
+          <Link prefetch={false} href="/operacao">
+            Dados deste aparelho e sincronização →
+          </Link>
+          <Link prefetch={false} href="/pendencias">
+            Conferir pendências
+          </Link>
+        </div>
+      </details>
     </div>
   );
 }

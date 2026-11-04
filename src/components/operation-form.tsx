@@ -1,6 +1,5 @@
 'use client';
 import { useRef, useState, useTransition, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 import { operationAction } from '@/app/actions';
 export function OperationForm({
   operation,
@@ -18,8 +17,7 @@ export function OperationForm({
   onSuccess?: () => void;
 }) {
   const [state, setState] = useState({ ok: false, message: '' }),
-    [pending, start] = useTransition(),
-    router = useRouter();
+    [pending, start] = useTransition();
   const running = useRef(false);
   return (
     <form
@@ -42,7 +40,7 @@ export function OperationForm({
             if (result.ok) {
               if (reset) form.reset();
               onSuccess?.();
-              router.refresh();
+              // A Server Action já revalida a árvore; outro refresh duplicaria a leitura.
             }
           } catch (error) {
             setState({

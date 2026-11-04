@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { requireActor } from '@/modules/auth/server';
 import { Navigation } from '@/components/navigation';
 import { SyncStatus } from '@/components/sync-status';
@@ -23,7 +24,9 @@ export default async function AppLayout({
           userId={actor.userId}
           organizationId={actor.organizationId}
         />
-        <ReminderBanner organizationId={actor.organizationId} />
+        <Suspense fallback={null}>
+          <ReminderBanner organizationId={actor.organizationId} />
+        </Suspense>
         {children}
         <footer className="page-footer">
           Revenda Fácil <span>Um passo de cada vez. Tudo sob controle.</span>

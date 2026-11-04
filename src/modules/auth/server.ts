@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -28,14 +29,15 @@ export async function supabase() {
     },
   );
 }
-export async function requireUser() {
+// Deduplicação apenas durante a mesma renderização RSC; nunca cache global de sessão.
+export const requireUser = cache(async function requireUser() {
   if (!authConfigured()) redirect('/login');
   const client = await supabase();
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) redirect('/login');
   return data.user;
-}
-export async function requireActor() {
+});
+export const requireActor = cache(async function requireActor() {
   const user = await requireUser();
   const membership = await db.membership.findUnique({
     where: { userId: user.id },
@@ -47,4 +49,4 @@ export async function requireActor() {
     organizationId: membership.organizationId,
     organization: membership.organization,
   };
-}
+});

@@ -126,36 +126,37 @@ export async function finalizeSale(actor: Actor, raw: unknown) {
         throw new BusinessError(
           'O estoque mudou durante a venda. Revise o carrinho.',
         );
-      await tx.saleItem.create({
-        data: {
-          ...item,
-          organizationId: actor.organizationId,
-          saleId: sale.id,
-        },
-      });
-      if (immediate)
-        await tx.inventoryMovement.create({
-          data: {
-            organizationId: actor.organizationId,
-            productId: item.productId,
-            type: 'SALE',
-            quantity: -item.quantity,
-            unitCost: item.unitCost,
-            referenceId: sale.id,
-          },
-        });
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorId: actor.userId,
-          type: immediate ? 'SALE' : 'RESERVATION',
-          description: `${immediate ? 'Venda' : 'Reserva'}: ${item.productName}`,
-          referenceId: sale.id,
-          quantity: item.quantity,
-          amount: item.total,
-        },
-      });
     }
+    // Escritas independentes em lote, mantendo as baixas condicionais e a transação.
+    await tx.saleItem.createMany({
+      data: items.map((item) => ({
+        ...item,
+        organizationId: actor.organizationId,
+        saleId: sale.id,
+      })),
+    });
+    if (immediate)
+      await tx.inventoryMovement.createMany({
+        data: items.map((item) => ({
+          organizationId: actor.organizationId,
+          productId: item.productId,
+          type: 'SALE',
+          quantity: -item.quantity,
+          unitCost: item.unitCost,
+          referenceId: sale.id,
+        })),
+      });
+    await tx.auditLog.createMany({
+      data: items.map((item) => ({
+        organizationId: actor.organizationId,
+        actorId: actor.userId,
+        type: immediate ? 'SALE' : 'RESERVATION',
+        description: `${immediate ? 'Venda' : 'Reserva'}: ${item.productName}`,
+        referenceId: sale.id,
+        quantity: item.quantity,
+        amount: item.total,
+      })),
+    });
     if (D(input.paid).gt(0)) {
       await tx.payment.create({
         data: {
@@ -338,28 +339,28 @@ export async function completeOrder(actor: Actor, raw: unknown) {
         throw new BusinessError(
           'Reserva inconsistente. Não foi possível concluir.',
         );
-      await tx.inventoryMovement.create({
-        data: {
-          organizationId: actor.organizationId,
-          productId: item.productId,
-          type: 'SALE',
-          quantity: -item.quantity,
-          unitCost: item.unitCost,
-          referenceId: sale.id,
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorId: actor.userId,
-          type: 'SALE',
-          description: `Pedido concluído: ${item.productName}`,
-          referenceId: sale.id,
-          quantity: item.quantity,
-          amount: item.total,
-        },
-      });
     }
+    await tx.inventoryMovement.createMany({
+      data: sale.items.map((item) => ({
+        organizationId: actor.organizationId,
+        productId: item.productId,
+        type: 'SALE',
+        quantity: -item.quantity,
+        unitCost: item.unitCost,
+        referenceId: sale.id,
+      })),
+    });
+    await tx.auditLog.createMany({
+      data: sale.items.map((item) => ({
+        organizationId: actor.organizationId,
+        actorId: actor.userId,
+        type: 'SALE',
+        description: `Pedido concluído: ${item.productName}`,
+        referenceId: sale.id,
+        quantity: item.quantity,
+        amount: item.total,
+      })),
+    });
     await tx.fiscalDocument.create({
       data: { organizationId: actor.organizationId, saleId: sale.id },
     });

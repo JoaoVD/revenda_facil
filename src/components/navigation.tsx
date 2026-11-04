@@ -56,7 +56,7 @@ export function Navigation({ name, owner }: { name: string; owner: string }) {
         >
           {open ? <X /> : <Menu />}
         </button>
-        <Link href="/" className="brand">
+        <Link prefetch={false} href="/" className="brand">
           <span className="brand-mark">
             <Leaf size={29} strokeWidth={1.5} />
           </span>
@@ -78,6 +78,7 @@ export function Navigation({ name, owner }: { name: string; owner: string }) {
           <span className="nav-section-label">Sua rotina</span>
           {links.map(([href, label, Icon]) => (
             <Link
+              prefetch={false}
               key={href}
               href={href}
               onClick={() => setOpen(false)}
@@ -98,6 +99,7 @@ export function Navigation({ name, owner }: { name: string; owner: string }) {
             <summary>Outros atalhos</summary>
             {secondaryLinks.map(([href, label, Icon]) => (
               <Link
+                prefetch={false}
                 key={href}
                 href={href}
                 onClick={() => setOpen(false)}
@@ -136,6 +138,7 @@ export function Navigation({ name, owner }: { name: string; owner: string }) {
       <nav className="bottom-nav" aria-label="Atalhos">
         {mobileLinks.map(([href, label, Icon]) => (
           <Link
+            prefetch={false}
             key={href}
             href={href}
             aria-current={path === href ? 'page' : undefined}

@@ -240,4 +240,11 @@ describe('recuperação da fila persistente', () => {
     expect(actual.state).toBe('APPLIED');
     expect(actual.resultId).toBe('receipt-current');
   });
+  it('fila vazia consulta um único snapshot e não faz POST', async () => {
+    const fetcher = transport(async () => {
+      throw new Error('Não deveria enviar');
+    });
+    expect(await synchronize(scope)).toBe('Tudo sincronizado');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
 });
