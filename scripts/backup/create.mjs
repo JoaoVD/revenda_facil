@@ -12,8 +12,10 @@ try {
   const fd = fs.openSync(destination, 'wx', 0o600);
   fs.closeSync(fd);
   const partial = `${destination}.partial`;
+  let ownsPartial = false;
   try {
     const partialFd = fs.openSync(partial, 'wx', 0o600);
+    ownsPartial = true;
     fs.closeSync(partialFd);
     const result = spawnSync(
       'pg_dump',
@@ -34,7 +36,7 @@ try {
       );
     fs.renameSync(partial, destination);
   } catch (error) {
-    fs.rmSync(partial, { force: true });
+    if (ownsPartial) fs.rmSync(partial, { force: true });
     fs.rmSync(destination, { force: true });
     throw error;
   }

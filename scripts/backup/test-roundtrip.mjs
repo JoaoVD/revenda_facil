@@ -35,6 +35,15 @@ try {
     `INSERT INTO "Product" (id,"organizationId",name,sku,"referenceCost","salePrice",stock,reserved,"updatedAt") VALUES ('bbbbbbbb-1111-4111-8111-111111111111','aaaaaaaa-1111-4111-8111-111111111111','Perfume TEST','BACKUP-TEST',40,100,10,2,now());`,
   );
   sql('CREATE DATABASE revenda_restore_ci');
+  fs.writeFileSync(`${file}.partial`, 'PREVIOUS PARTIAL');
+  assert.equal(
+    script('create', { DATABASE_BACKUP_URL: process.env.TEST_DATABASE_URL })
+      .status,
+    1,
+  );
+  assert.equal(fs.readFileSync(`${file}.partial`, 'utf8'), 'PREVIOUS PARTIAL');
+  assert.equal(fs.existsSync(file), false);
+  fs.rmSync(`${file}.partial`);
   const backup = script('create', {
     DATABASE_BACKUP_URL: process.env.TEST_DATABASE_URL,
   });
