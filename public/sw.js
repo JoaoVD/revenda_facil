@@ -58,16 +58,44 @@ self.addEventListener('fetch', (event) => {
   }
 });
 self.addEventListener('push', (event) => {
+  let test = false;
+  try {
+    test = event.data?.json()?.type === 'TEST_NOTIFICATION';
+  } catch {
+    /* texto fixo */
+  }
   // Texto fixo: payload nunca expõe nomes ou valores na tela bloqueada.
   event.waitUntil(
     self.registration.showNotification('Revenda Fácil', {
-      body: 'Há uma conferência disponível. Abra o aplicativo para consultar.',
-      tag: 'receivables-review',
-      data: { url: '/receber' },
+      body: test
+        ? 'Seu teste chegou! As notificações estão funcionando neste aparelho.'
+        : 'Há uma conferência disponível. Abra o aplicativo para consultar.',
+      icon: '/icon-192.png',
+      tag: test ? 'push-test' : 'receivables-review',
+      data: { url: test ? '/configuracoes' : '/receber' },
     }),
   );
 });
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow('/receber'));
+  const target =
+    event.notification.data?.url === '/configuracoes'
+      ? '/configuracoes'
+      : '/receber';
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      const existing = windows.find(
+        (client) => new URL(client.url).origin === self.location.origin,
+      );
+      if (existing) {
+        await existing.navigate(target);
+        return existing.focus();
+      }
+      return self.clients.openWindow(target);
+    })(),
+  );
 });

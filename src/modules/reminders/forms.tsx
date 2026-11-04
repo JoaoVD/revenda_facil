@@ -63,11 +63,6 @@ export function ReminderSettings({
         Meses sem o dia escolhido usam o último dia. O aviso aparece a partir do
         horário combinado, até a revisão ou quitação dos saldos.
       </p>
-      <p className="notice">
-        Aviso dentro do sistema disponível. Envio push remoto ainda não está
-        habilitado: requer adaptador de transporte, credenciais VAPID e
-        agendador.
-      </p>
     </OperationForm>
   );
 }

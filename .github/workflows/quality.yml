@@ -34,4 +34,7 @@ jobs:
       - run: npm run test:orders:browser
         env:
           UX_BROWSER_CHANNEL: chromium
+      - run: npm run test:push:browser
+        env:
+          UX_BROWSER_CHANNEL: chromium
       - run: npm run build

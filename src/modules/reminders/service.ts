@@ -122,7 +122,11 @@ export async function scheduleReminders(now = new Date()) {
   return { checked: settings.length, queued };
 }
 export type PushSender = (
-  subscription: { endpoint: string; keys: unknown },
+  subscription: {
+    endpoint: string;
+    keys: unknown;
+    vapidPublicKey?: string | null;
+  },
   payload: string,
 ) => Promise<{ statusCode: number }>;
 /** Adaptador de transporte injetável: nenhum envio remoto habilitado sem integração. */
@@ -134,7 +138,7 @@ export async function dispatchPushJobs(send: PushSender, now = new Date()) {
       attempts: { lt: 5 },
     },
     include: { subscription: true },
-    take: 100,
+    take: 5,
   });
   for (const job of jobs) {
     const lease = await db.pushJob.updateMany({
@@ -168,7 +172,11 @@ export async function dispatchPushJobs(send: PushSender, now = new Date()) {
     }
     try {
       const result = await send(
-        { endpoint: job.subscription.endpoint, keys: job.subscription.keys },
+        {
+          endpoint: job.subscription.endpoint,
+          keys: job.subscription.keys,
+          vapidPublicKey: job.subscription.vapidPublicKey,
+        },
         JSON.stringify({ type: 'REVIEW_RECEIVABLES' }),
       );
       if ([404, 410].includes(result.statusCode)) {

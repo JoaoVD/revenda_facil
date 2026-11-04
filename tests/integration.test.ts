@@ -10,6 +10,12 @@ import {
 import { recordPayment } from '@/modules/finance/service';
 import { syncCommand } from '@/modules/sync/service';
 import {
+  savePushSubscription,
+  pushSubscriptionActive,
+  removePushSubscription,
+  testPushSubscription,
+} from '@/modules/reminders/subscriptions';
+import {
   saveReminder,
   dueNotice,
   scheduleReminders,
@@ -548,6 +554,125 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
     expect(
       (await db.product.findUniqueOrThrow({ where: { id: p.id } })).reserved,
     ).toBe(1);
+  });
+  it('inscrição push é idempotente, isolada e limita testes concorrentes por aparelho', async () => {
+    const keys = {
+      p256dh: Buffer.alloc(65, 4).toString('base64url'),
+      auth: Buffer.alloc(16, 1).toString('base64url'),
+    };
+    const subscription = {
+      endpoint: `https://fcm.googleapis.com/fcm/send/${crypto.randomUUID()}`,
+      keys,
+    };
+    const config = {
+      publicKey: 'TEST_VAPID',
+      privateKey: 'TEST_PRIVATE',
+      subject: 'mailto:test@example.com',
+    };
+    const [one, two] = await Promise.all([
+      savePushSubscription(a, subscription, config.publicKey),
+      savePushSubscription(a, subscription, config.publicKey),
+    ]);
+    expect(one.id).toBe(two.id);
+    expect(
+      await pushSubscriptionActive(a, subscription.endpoint, config.publicKey),
+    ).toBe(true);
+    expect(
+      await pushSubscriptionActive(b, subscription.endpoint, config.publicKey),
+    ).toBe(false);
+    await expect(
+      savePushSubscription(b, subscription, config.publicKey),
+    ).rejects.toThrow('conta atual');
+    await removePushSubscription(b, subscription.endpoint);
+    const send = vi
+      .fn<
+        (
+          subscription: unknown,
+          payload: string,
+        ) => Promise<{ statusCode: number }>
+      >()
+      .mockResolvedValue({ statusCode: 201 });
+    await expect(
+      testPushSubscription(b, subscription.endpoint, send, config),
+    ).rejects.toThrow('Ative');
+    const attempts = await Promise.allSettled([
+      testPushSubscription(a, subscription.endpoint, send, config),
+      testPushSubscription(a, subscription.endpoint, send, config),
+    ]);
+    expect(attempts.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][1]).toBe('{"type":"TEST_NOTIFICATION"}');
+    await db.pushSubscription.update({
+      where: { id: one.id },
+      data: { lastTestAt: new Date(Date.now() - 61000) },
+    });
+    await expect(
+      testPushSubscription(
+        a,
+        subscription.endpoint,
+        async () => ({ statusCode: 410 }),
+        config,
+      ),
+    ).rejects.toThrow('expirada');
+    expect(
+      await pushSubscriptionActive(a, subscription.endpoint, config.publicKey),
+    ).toBe(false);
+  });
+  it('push pendente não é enviado após quitação do saldo', async () => {
+    const p = await product(b);
+    await purchase(p.id, 1, '40', b);
+    const c = await db.customer.create({
+      data: { name: 'TEST push quitação', organizationId: b.organizationId },
+    });
+    const s = await finalizeSale(b, {
+      idempotencyKey: crypto.randomUUID(),
+      customerId: c.id,
+      method: 'PIX',
+      items: [{ productId: p.id, quantity: 1 }],
+    });
+    await saveReminder(b, {
+      enabled: true,
+      dayMode: 'FIRST',
+      day: 1,
+      time: '09:00',
+      scope: 'ALL',
+    });
+    const sub = await savePushSubscription(
+      b,
+      {
+        endpoint: `https://fcm.googleapis.com/fcm/send/${crypto.randomUUID()}`,
+        keys: {
+          p256dh: Buffer.alloc(65, 4).toString('base64url'),
+          auth: Buffer.alloc(16).toString('base64url'),
+        },
+      },
+      'TEST_KEY',
+    );
+    const now = new Date('2027-01-01T12:00:00Z');
+    await scheduleReminders(now);
+    await recordPayment(b, {
+      idempotencyKey: crypto.randomUUID(),
+      kind: 'SALE',
+      referenceId: s.id,
+      amount: '100',
+      method: 'PIX',
+      description: 'TEST quitação antes do push',
+    });
+    const send = vi
+      .fn<
+        (
+          subscription: unknown,
+          payload: string,
+        ) => Promise<{ statusCode: number }>
+      >()
+      .mockResolvedValue({ statusCode: 201 });
+    await dispatchPushJobs(send, now);
+    expect(send).not.toHaveBeenCalled();
+    expect(
+      (await db.pushJob.findFirstOrThrow({ where: { subscriptionId: sub.id } }))
+        .status,
+    ).toBe('SUPPRESSED');
+    await removePushSubscription(b, sub.endpoint);
   });
   it('lembrete mensal não duplica, invalida inscrição e desaparece após quitar', async () => {
     const p = await product(b);

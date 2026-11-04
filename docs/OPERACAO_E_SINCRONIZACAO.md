@@ -40,9 +40,9 @@ Reserva local é provisória. Falta de estoque, preço alterado ou recebimento a
 
 Configurações permitem primeiro/último/dia específico, hora em America/Sao_Paulo, todos os saldos ou apenas vencidos e ativação. Dia inexistente usa o último do mês. Um aviso persistido por organização/mês evita duplicação. Saldos atuais são revistos antes de exibir; resolvidos deixam de alertar. Revisar/adicionar adiamento de 24 horas não quita dívida.
 
-Agendador externo pode chamar `POST /api/reminders/run` com `Authorization: Bearer <REMINDER_SCHEDULER_SECRET>`. Sem segredo, retorna 503. O endpoint cria avisos/jobs únicos e informa `pushTransport: NOT_CONFIGURED`.
+Agendador externo chama `POST /api/reminders/run` com `Authorization: Bearer <REMINDER_SCHEDULER_SECRET>`. Sem segredo ou par VAPID válido, retorna 503. O endpoint cria avisos/jobs únicos e processa até cinco envios por rodada, com `pushTransport: WEB_PUSH`. Execute a cada minuto no servidor; o navegador não precisa estar aberto.
 
-Existem modelos de inscrição/jobs, worker com transporte injetável, leases, retentativas, supressão de saldos resolvidos e remoção de inscrições 404/410. Inscrição/permissão e transporte push remoto estão pendentes. Variáveis VAPID são reservadas e não ativam envio. Nenhuma permissão é solicitada ao abrir. O service worker tem texto genérico, sem nomes/valores, e abre `/receber`, que exige autenticação. WhatsApp apenas prepara conversa para revisão.
+Configurações oferece inscrição/permissão por aparelho, envio de teste e desativação. O transporte Web Push usa VAPID, prazo de retenção de 24 horas e timeout de socket de 10 segundos. Há leases, retentativas, supressão de saldos resolvidos e remoção de inscrições 404/410. Teste tem intervalo mínimo de um minuto por inscrição. Nenhuma permissão é solicitada ao abrir. O service worker usa textos fixos, sem nomes/valores, e abre `/receber` (ou `/configuracoes` no teste), exigindo autenticação no aplicativo. WhatsApp apenas prepara conversa para revisão. Detalhes e limites: [Web Push](NOTIFICACOES_WEB_PUSH.md).
 
 ## Backup e segurança
 
@@ -51,4 +51,3 @@ PostgreSQL é a fonte consolidada e precisa de backup consistente com restauraç
 IndexedDB não é backup: limpeza do navegador, modo privado, quotas e perda do aparelho podem eliminar ações não sincronizadas. Antes de limpar dados, atualizar ou trocar perfil, confira a fila na conta original e aguarde confirmação do servidor. Mantenha bloqueio de tela e proteja o perfil do navegador.
 
 Dados antigos em `.local` e `backups` foram preservados na limpeza do código. Não há migração automática das contas/banco desktop para Supabase; qualquer importação exige procedimento separado, conferência e backup. Não reutilize o executável legado para operar o SaaS.
-

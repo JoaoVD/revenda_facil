@@ -62,7 +62,12 @@ Testes de componentes usam Chrome instalado (`UX_BROWSER_CHANNEL=chrome` por pad
 
 ## Limitações atuais
 
-Snapshots locais são limitados; sincronização incremental e resolução assistida de conflitos não estão concluídas. Também faltam rascunhos editáveis, edição do atendimento, devolução financeira, outros meios de pagamento e alocação entre compras. Lembretes internos funcionam; inscrição e transporte push remoto dependem de implementação e configuração adicionais. Instalação PWA e teclado virtual físico de Android/iOS precisam de homologação. Relatórios avançados continuam em desenvolvimento.
+Snapshots locais são limitados; sincronização incremental e resolução assistida de conflitos não estão concluídas. Também faltam rascunhos editáveis, edição do atendimento, devolução financeira, outros meios de pagamento e alocação entre compras. Lembretes internos e integração Web Push estão implementados; envio real depende de HTTPS, chaves VAPID, agendador e inscrição autorizada no aparelho. Instalação PWA, recebimento real de push e teclado virtual físico de Android/iOS precisam de homologação. Relatórios avançados continuam em desenvolvimento.
+
+## Notificações no celular
+
+Em Configurações → Lembretes, salve dia/horário e ative as notificações por aparelho. Há teste de envio e desativação independente do aviso interno. No iPhone/iPad, adicione à Tela de Início e abra pelo ícone antes de ativar. Não há pedido de permissão automático ao entrar.
+
+Leia [configuração e homologação de Web Push](docs/NOTIFICACOES_WEB_PUSH.md). A chave privada e o segredo do agendador ficam apenas no backend. `npm run push:keys` gera o par VAPID; `npm run reminders:run` executa uma rodada do agendador usando `.env`. `npm run test:push:browser` testa o componente em Chromium com permissão/PushManager/HTTP simulados.
 
 Escopo da remoção de componentes não SaaS e verificações: [limpeza do projeto](docs/LIMPEZA_SAAS.md).
-

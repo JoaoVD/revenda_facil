@@ -423,6 +423,10 @@ model PushSubscription {
   keys           Json
   createdAt      DateTime @default(now())
   jobs           PushJob[]
+  vapidPublicKey String?
+  lastTestAt     DateTime?
+
+  @@index([organizationId, userId])
 }
 
 model PushJob {
@@ -436,3 +440,4 @@ model PushJob {
   subscription   PushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   @@unique([subscriptionId, noticeId])
 }
+
