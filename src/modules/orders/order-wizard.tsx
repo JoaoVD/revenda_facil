@@ -113,8 +113,12 @@ export function OrderWizard({
   const unavailable = Object.keys(cart).filter(
     (id) => cart[id] > 0 && !products.some((p) => p.id === id),
   );
-  function change(id: string, quantity: number) {
-    setCart((old) => ({ ...old, [id]: Math.max(0, quantity) }));
+  function change(id: string, delta: number) {
+    const stock = products.find((product) => product.id === id)?.stock || 0;
+    setCart((old) => ({
+      ...old,
+      [id]: Math.max(0, Math.min(stock, (old[id] || 0) + delta)),
+    }));
   }
   function submit() {
     if (submitting.current || !draft.ready) return;
@@ -335,6 +339,7 @@ export function OrderWizard({
       {!draft.submission && (
         <fieldset
           className="order-editor order-fieldset"
+          aria-busy={!draft.ready}
           disabled={pending || !draft.ready || Boolean(draft.submission)}
         >
           <section
@@ -386,7 +391,7 @@ export function OrderWizard({
                           <button
                             type="button"
                             aria-label={`Remover ${p.name}`}
-                            onClick={() => change(p.id, cart[p.id] - 1)}
+                            onClick={() => change(p.id, -1)}
                           >
                             <Minus size={18} />
                           </button>
@@ -397,7 +402,7 @@ export function OrderWizard({
                         type="button"
                         aria-label={`Adicionar ${p.name}`}
                         disabled={(cart[p.id] || 0) >= p.stock}
-                        onClick={() => change(p.id, (cart[p.id] || 0) + 1)}
+                        onClick={() => change(p.id, 1)}
                       >
                         <Plus size={18} />
                       </button>
