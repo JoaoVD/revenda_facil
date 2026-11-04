@@ -28,7 +28,9 @@ Contrato 1: UUID estável, usuário/organização, tipo, dependências, payload 
 
 Estados: PENDING, WAITING, APPLIED, ATTENTION. Resultado é persistido; mesmo ID com outro conteúdo é recusado. Aplicação comercial e gravação do resultado usam transações separadas: o intervalo é recuperado pela idempotência de vendas/pagamentos, ID estável de cliente e entrega única. Tipos novos precisam garantir essa propriedade.
 
-O cliente confirma APPLIED apenas com resposta válida para o mesmo ID. Mantém registros, atualiza snapshots e usa lease IndexedDB de 30 segundos para coordenar abas; o servidor tem lease de 60 segundos. Falhas temporárias usam atraso exponencial até cinco minutos, com limite de oito falhas; respostas WAITING/PENDING não consomem esse limite. Sessão expirada não apaga a fila. Sincroniza ao abrir, retomar, reconectar e periodicamente com a aplicação aberta. Não há garantia com aplicação fechada.
+O cliente confirma APPLIED apenas com resposta válida para o mesmo ID. Mantém registros, atualiza snapshots e usa lease IndexedDB de 30 segundos para coordenar abas; o servidor tem lease de 60 segundos. Falhas temporárias usam atraso exponencial até cinco minutos, sem transformar indisponibilidade em rejeição permanente após um número fixo de tentativas. Respostas WAITING/PENDING zeram a contagem de falhas de transporte. Cada reenvio conserva ID e intenção; o servidor recupera o resultado idempotente mesmo quando a operação foi aplicada e a confirmação falhou. Sessão expirada não apaga a fila. Sincroniza ao abrir, retomar, reconectar e periodicamente com a aplicação aberta. Não há garantia com aplicação fechada.
+
+A chave local protege o contrato completo (conta, tipo, dependências, horário capturado e payload), sem incluir os metadados mutáveis da fila. As antigas pausas geradas especificamente pelo limite de transporte são recuperadas automaticamente, tanto no aparelho quanto no servidor; conflitos comerciais ATTENTION continuam exigindo revisão e nunca são reabertos por essa recuperação.
 
 Reserva local é provisória. Falta de estoque, preço alterado ou recebimento acima do saldo resultam em conferência, sem aplicar estoque/dinheiro indevidos. Fatos dependentes são preservados em WAITING no servidor, mesmo quando a reserva anterior falhou. Mais mostra mensagens e IDs. Não apague registros para esconder conflitos.
 
@@ -49,3 +51,4 @@ PostgreSQL é a fonte consolidada e precisa de backup consistente com restauraç
 IndexedDB não é backup: limpeza do navegador, modo privado, quotas e perda do aparelho podem eliminar ações não sincronizadas. Antes de limpar dados, atualizar ou trocar perfil, confira a fila na conta original e aguarde confirmação do servidor. Mantenha bloqueio de tela e proteja o perfil do navegador.
 
 Dados antigos em `.local` e `backups` foram preservados na limpeza do código. Não há migração automática das contas/banco desktop para Supabase; qualquer importação exige procedimento separado, conferência e backup. Não reutilize o executável legado para operar o SaaS.
+

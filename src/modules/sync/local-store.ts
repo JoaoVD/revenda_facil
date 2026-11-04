@@ -1,4 +1,4 @@
-import type { Command } from './contracts';
+import { commandInput, type Command } from './contracts';
 export type Scope = { userId: string; organizationId: string };
 export type LocalCommand = Command & {
   scope: string;
@@ -166,30 +166,34 @@ export async function localCommands(scope: Scope): Promise<LocalCommand[]> {
 }
 /** O registro provisório e sua intenção são confirmados no MESMO commit IDB. */
 export async function enqueue(command: Command) {
+  // Remover metadados mutáveis da fila e validar a intenção antes de comparar.
+  // Campos opcionais undefined são omitidos também no JSON enviado ao servidor.
+  // Normalizar evita rejeitar o formulário e permite ler filas da versão antiga.
+  const input = commandInput.parse(JSON.parse(JSON.stringify(command)));
   const value: LocalCommand = {
-    ...command,
-    scope: scopeKey(command),
+    ...input,
+    scope: scopeKey(input),
     state: 'PENDING',
     attempts: 0,
     nextAttemptAt: 0,
   };
   await transaction(['commands', 'records'], async (tx) => {
     const old = await requestValue<LocalCommand | undefined>(
-      tx.objectStore('commands').get(command.id),
+      tx.objectStore('commands').get(input.id),
     );
     if (old) {
       if (
-        JSON.stringify(old.payload) !== JSON.stringify(command.payload) ||
-        old.scope !== value.scope
+        JSON.stringify(commandInput.parse(JSON.parse(JSON.stringify(old)))) !==
+        JSON.stringify(input)
       )
         throw new Error('Chave local já utilizada com outros dados.');
       return;
     }
     tx.objectStore('records').add(
       { scope: value.scope, type: value.type, payload: value.payload },
-      command.id,
+      input.id,
     );
-    tx.objectStore('commands').add(value, command.id);
+    tx.objectStore('commands').add(value, input.id);
   });
 }
 export async function updateCommand(command: LocalCommand) {

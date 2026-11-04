@@ -27,6 +27,18 @@ export async function syncCommand(actor: Actor, raw: unknown) {
       )
         throw new BusinessError('Comando vinculado a outra conta.');
       sameRequest(old.requestHash, input);
+      // Destrava apenas a antiga pausa por esgotamento de transporte. Nunca
+      // reabre automaticamente conflitos comerciais ou comandos alterados.
+      if (
+        old.status === 'ATTENTION' &&
+        old.attempts >= 8 &&
+        old.message ===
+          'Limite de tentativas. Informação preservada para conferência.'
+      )
+        return tx.syncCommand.update({
+          where: { id: old.id },
+          data: { status: 'PENDING', message: null, leaseUntil: null },
+        });
       return old;
     }
     return tx.syncCommand.create({
@@ -62,7 +74,6 @@ export async function syncCommand(actor: Actor, raw: unknown) {
     where: {
       id: input.id,
       status: { in: ['PENDING', 'WAITING'] },
-      attempts: { lt: 8 },
       OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }],
     },
     data: {
@@ -75,18 +86,6 @@ export async function syncCommand(actor: Actor, raw: unknown) {
     command = await db.syncCommand.findUniqueOrThrow({
       where: { id: input.id },
     });
-    if (
-      command.attempts >= 8 &&
-      (!command.leaseUntil || command.leaseUntil < now)
-    )
-      return db.syncCommand.update({
-        where: { id: input.id },
-        data: {
-          status: 'ATTENTION',
-          message:
-            'Limite de tentativas. Informação preservada para conferência.',
-        },
-      });
     return command;
   }
   try {
