@@ -18,7 +18,7 @@ export async function syncCommand(actor: Actor, raw: unknown) {
     );
   // Persistir a informação capturada antes de tentar aplicá-la. Dependências com
   // conflito não impedem a captura de dinheiro ou entrega já realizados.
-  let command = await atomic(async (tx) => {
+  const command = await atomic(async (tx) => {
     const old = await tx.syncCommand.findUnique({ where: { id: input.id } });
     if (old) {
       if (
@@ -51,7 +51,28 @@ export async function syncCommand(actor: Actor, raw: unknown) {
       },
     });
   });
+  return applySyncCommand(actor, command.id);
+}
+
+/** Aplicação a partir do registro persistido: a resolução não altera o envelope capturado. */
+export async function applySyncCommand(actor: Actor, commandId: string) {
+  let command = await db.syncCommand.findFirst({
+    where: {
+      id: commandId,
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+    },
+  });
+  if (!command) throw new BusinessError('Registro não encontrado nesta conta.');
   if (['APPLIED', 'ATTENTION'].includes(command.status)) return command;
+  const input = {
+    id: command.id,
+    type: commandInput.shape.type.parse(command.type),
+    payload: commandInput.shape.payload.parse(
+      command.resolvedPayload ?? command.payload,
+    ),
+    dependencies: commandInput.shape.dependencies.parse(command.dependencies),
+  };
   const dependencies = await db.syncCommand.count({
     where: {
       id: { in: input.dependencies },

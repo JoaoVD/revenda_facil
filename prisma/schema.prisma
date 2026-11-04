@@ -222,6 +222,7 @@ model Sale {
   payments           Payment[]
   expenses           Expense[]
   fiscalDocument     FiscalDocument?
+  changes            OrderChange[]
 
   @@unique([organizationId, idempotencyKey])
   @@unique([organizationId, id])
@@ -236,9 +237,26 @@ model Installment {
   amount         Decimal  @db.Decimal(18, 2)
   received       Decimal  @default(0) @db.Decimal(18, 2)
   dueDate        String?
+  planVersion    Int      @default(1)
+  supersededAt   DateTime?
   sale           Sale     @relation(fields: [organizationId, saleId], references: [organizationId, id])
 
-  @@unique([organizationId, saleId, position])
+  @@unique([organizationId, saleId, planVersion, position])
+}
+
+model OrderChange {
+  id             String @id
+  organizationId String
+  actorId        String
+  saleId         String
+  type           String
+  version        Int
+  requestHash    String
+  payload        Json
+  before         Json
+  createdAt      DateTime @default(now())
+  sale           Sale @relation(fields: [organizationId, saleId], references: [organizationId, id])
+  @@unique([organizationId, saleId, version])
 }
 
 model SaleItem {
@@ -391,8 +409,27 @@ model SyncCommand {
   leaseUntil       DateTime?
   attempts         Int      @default(0)
   updatedAt        DateTime @updatedAt
+  resolvedPayload  Json?
+  resolutionVersion Int @default(0)
+  resolutions      SyncResolution[]
 
   @@index([organizationId, userId, status])
+  @@unique([organizationId, userId, id])
+}
+
+model SyncResolution {
+  id             String @id
+  organizationId String
+  userId         String
+  commandId      String
+  version        Int
+  action         String
+  reason         String
+  requestHash    String
+  payload        Json
+  createdAt      DateTime @default(now())
+  command        SyncCommand @relation(fields: [organizationId, userId, commandId], references: [organizationId, userId, id])
+  @@unique([organizationId, userId, commandId, version])
 }
 
 model ReminderPreference {
@@ -440,4 +477,5 @@ model PushJob {
   subscription   PushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   @@unique([subscriptionId, noticeId])
 }
+
 

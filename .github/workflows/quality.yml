@@ -30,6 +30,10 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint -- --max-warnings=0
       - run: npm test
+      - name: Testar backup e restauração em banco descartável
+        run: |
+          if [ -d /usr/lib/postgresql/17/bin ]; then export PATH="/usr/lib/postgresql/17/bin:$PATH"; fi
+          node scripts/backup/test-roundtrip.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:orders:browser
         env:

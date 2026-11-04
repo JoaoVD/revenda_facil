@@ -1,19 +1,24 @@
 import { db } from '@/lib/db';
 import { D } from '@/lib/money';
+import { netReceived } from '@/modules/finance/ledger';
 import type { Actor } from '@/modules/shared/contracts';
 export const orderInclude = {
   customer: true,
   items: true,
   payments: true,
-  installments: { orderBy: { position: 'asc' as const } },
+  installments: {
+    where: { supersededAt: null },
+    orderBy: { position: 'asc' as const },
+  },
 };
 export const pendingBalance = (sale: {
   total: { toString(): string };
-  payments: { amount: { toString(): string } }[];
+  status?: string;
+  payments: { amount: { toString(): string }; direction?: string }[];
 }) =>
-  D(sale.total.toString()).minus(
-    sale.payments.reduce((sum, p) => sum.plus(p.amount.toString()), D(0)),
-  );
+  sale.status === 'CANCELLED'
+    ? D(0)
+    : D(sale.total.toString()).minus(netReceived(sale.payments));
 export async function orders(actor: Actor, page = 1) {
   return db.sale.findMany({
     where: { organizationId: actor.organizationId },

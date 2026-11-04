@@ -171,7 +171,7 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
     const commands = await page.evaluate(
       () =>
         new Promise<{ state: string }[]>((resolve, reject) => {
-          const opening = indexedDB.open('revenda-offline-v1', 1);
+          const opening = indexedDB.open('revenda-offline-v1');
           opening.onsuccess = () => {
             const database = opening.result,
               request = database

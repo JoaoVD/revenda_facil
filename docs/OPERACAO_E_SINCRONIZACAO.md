@@ -8,7 +8,7 @@ O servidor resolve a organização pela Membership autenticada no Supabase. Clie
 
 Pagamento não altera estoque; entrega não registra pagamento. Parcelas são o acordo, e Pix/dinheiro/cartão são os meios de cada recebimento. Parcelas podem variar em valor e ter data opcional. A soma deve coincidir com o saldo após a entrada. Recebimentos cobrem as parcelas na ordem exibida, com confirmação da distribuição. Sem vencimento não há atraso. Não existe alocação entre várias compras na mesma ação.
 
-Cancelar pedido sem entrega e sem dinheiro recebido libera reserva. O fluxo de devolução comercial após entrega preserva movimentos compensatórios e custo histórico; recebido ou fiscal não resolvido bloqueia cancelamento. Destinação financeira e reembolso ainda não têm fluxo implementado.
+Cancelar pedido sem entrega e sem dinheiro recebido libera reserva. Após entrega, exige retorno físico integral. Pedidos recebidos possuem fluxo de reembolso integral e cancelamento atômico, com confirmação do dinheiro efetivamente devolvido. Situação fiscal não resolvida bloqueia a operação. Consulte o guia de conferência e cancelamentos abaixo para regras e limitações.
 
 Lucro presumido gerencial = valor líquido das vendas concluídas no período − custo histórico congelado na confirmação − despesas vinculadas, com reversão no mês do cancelamento. Pedido reservado não reconhece resultado. Adiantamento entra no caixa, mas não antecipa resultado comercial. Parcelas previstas não são caixa; compra não paga não é saída. O indicador não representa regime tributário nem apuração contábil. Vendas legadas mantêm completedAt=createdAt, sem nova baixa.
 
@@ -51,3 +51,7 @@ PostgreSQL é a fonte consolidada e precisa de backup consistente com restauraç
 IndexedDB não é backup: limpeza do navegador, modo privado, quotas e perda do aparelho podem eliminar ações não sincronizadas. Antes de limpar dados, atualizar ou trocar perfil, confira a fila na conta original e aguarde confirmação do servidor. Mantenha bloqueio de tela e proteja o perfil do navegador.
 
 Dados antigos em `.local` e `backups` foram preservados na limpeza do código. Não há migração automática das contas/banco desktop para Supabase; qualquer importação exige procedimento separado, conferência e backup. Não reutilize o executável legado para operar o SaaS.
+
+## Conferência e mudanças de pedidos
+
+A evolução de conflitos, rascunhos, edição e reembolso está documentada em [conferência, rascunhos e cancelamentos](CONFERENCIA_RASCUNHOS_E_CANCELAMENTOS.md). Esse guia atualiza as limitações da entrega inicial: agora há conferência online auditada, rascunhos por aparelho e alterações controladas. A preparação de produção e ensaio de recuperação está em [operação na nuvem](OPERACAO_NUVEM_E_RECUPERACAO.md).

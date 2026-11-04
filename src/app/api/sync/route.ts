@@ -49,6 +49,7 @@ export async function POST(request: Request) {
         status: result.status,
         result: result.result,
         message: result.message,
+        resolvedPayload: result.resolvedPayload,
       },
       { headers },
     );
@@ -77,63 +78,76 @@ export async function GET() {
   // Snapshot completo e limitado nesta versão. Inativações substituem a cópia
   // local; não fingir que este endpoint já é um feed incremental ilimitado.
   const organizationId = actor.organizationId;
-  const [products, customers, sales, conflicts] = await Promise.all([
-    db.product.findMany({
-      where: { organizationId },
-      select: {
-        id: true,
-        name: true,
-        sku: true,
-        stock: true,
-        reserved: true,
-        active: true,
-        salePrice: true,
-        updatedAt: true,
-      },
-      take: 2000,
-      orderBy: { name: 'asc' },
-    }),
-    db.customer.findMany({
-      where: { organizationId },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        active: true,
-        updatedAt: true,
-      },
-      take: 2000,
-      orderBy: { name: 'asc' },
-    }),
-    db.sale.findMany({
-      where: { organizationId },
-      select: {
-        id: true,
-        customerId: true,
-        total: true,
-        status: true,
-        fulfillmentMode: true,
-        fulfillmentStatus: true,
-        version: true,
-        expectedDate: true,
-        items: {
-          select: { productName: true, quantity: true, unitPrice: true },
+  const [products, customers, sales, conflicts, commandResults] =
+    await Promise.all([
+      db.product.findMany({
+        where: { organizationId },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          stock: true,
+          reserved: true,
+          active: true,
+          salePrice: true,
+          updatedAt: true,
         },
-        payments: { select: { id: true, amount: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 500,
-    }),
-    db.syncCommand.findMany({
-      where: {
-        organizationId,
-        userId: actor.userId,
-        status: { in: ['ATTENTION', 'WAITING'] },
-      },
-      select: { id: true, type: true, message: true, receivedAt: true },
-      take: 500,
-    }),
-  ]);
+        take: 2000,
+        orderBy: { name: 'asc' },
+      }),
+      db.customer.findMany({
+        where: { organizationId },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          active: true,
+          updatedAt: true,
+        },
+        take: 2000,
+        orderBy: { name: 'asc' },
+      }),
+      db.sale.findMany({
+        where: { organizationId },
+        select: {
+          id: true,
+          customerId: true,
+          total: true,
+          status: true,
+          fulfillmentMode: true,
+          fulfillmentStatus: true,
+          version: true,
+          expectedDate: true,
+          items: {
+            select: { productName: true, quantity: true, unitPrice: true },
+          },
+          payments: { select: { id: true, amount: true, direction: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      }),
+      db.syncCommand.findMany({
+        where: {
+          organizationId,
+          userId: actor.userId,
+          status: { in: ['ATTENTION', 'WAITING'] },
+        },
+        select: { id: true, type: true, message: true, receivedAt: true },
+        take: 500,
+      }),
+      db.syncCommand.findMany({
+        where: { organizationId, userId: actor.userId },
+        select: {
+          id: true,
+          status: true,
+          message: true,
+          result: true,
+          resolvedPayload: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 500,
+      }),
+    ]);
   return Response.json(
     {
       userId: actor.userId,
@@ -144,6 +158,7 @@ export async function GET() {
       customers,
       sales,
       conflicts,
+      commandResults,
       limits: { products: 2000, customers: 2000, sales: 500 },
     },
     { headers },

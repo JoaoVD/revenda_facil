@@ -1,7 +1,7 @@
 {
   "name": "revenda-facil",
   "version": "1.0.0",
-  "description": "Gestão simples e transacional para revendedoras independentes",
+  "description": "Gest\u00e3o simples e transacional para revendedoras independentes",
   "scripts": {
     "push:keys": "web-push generate-vapid-keys",
     "test:push:browser": "node scripts/test-push-ux.mjs",
@@ -20,7 +20,9 @@
     "db:migrate": "prisma migrate deploy",
     "test:embedded": "node scripts/test-embedded.mjs",
     "test:orders:browser": "node scripts/test-orders-offline.mjs",
-    "test:orders:e2e": "playwright test tests/e2e/orders-offline.spec.ts"
+    "test:orders:e2e": "playwright test tests/e2e/orders-offline.spec.ts",
+    "backup:create": "node scripts/backup/create.mjs",
+    "backup:restore-test": "node scripts/backup/restore-test.mjs"
   },
   "license": "ISC",
   "type": "module",

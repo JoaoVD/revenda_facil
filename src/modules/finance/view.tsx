@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { brl, dateTime, D } from '@/lib/money';
 import { Card, Table, Empty, Badge } from '@/components/ui';
 import { PaymentForm } from '@/components/domain-forms';
+import { netReceived } from './ledger';
 export async function FinanceView({ actor, query }: ViewProps) {
   const organizationId = actor.organizationId;
   const skip = (query.page - 1) * 25;
@@ -28,17 +29,11 @@ export async function FinanceView({ actor, query }: ViewProps) {
     }),
   ]);
   const saleOptions = sales
-    .filter((s) =>
-      D(s.total.toString()).gt(
-        s.payments.reduce((t, p) => t.plus(p.amount.toString()), D(0)),
-      ),
-    )
+    .filter((s) => D(s.total.toString()).gt(netReceived(s.payments)))
     .map((s) => ({
       id: s.id,
       label: `${s.customer?.name || 'Sem cadastro'} · #${s.id.slice(0, 8)} · ${brl(
-        D(s.total.toString())
-          .minus(s.payments.reduce((t, p) => t.plus(p.amount.toString()), D(0)))
-          .toString(),
+        D(s.total.toString()).minus(netReceived(s.payments)).toString(),
       )} pendentes`,
     }));
   const purchaseOptions = purchases

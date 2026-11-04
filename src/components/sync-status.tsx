@@ -133,6 +133,7 @@ export function SyncStatus({ userId, organizationId }: Scope) {
         </button>
       )}
       <Link href="/operacao">Dados deste aparelho e sincronização →</Link>
+      <Link href="/pendencias">Conferir pendências</Link>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
+import { ensureNoPendingFacts } from '@/modules/orders/guards';
 import { saleInput, type Actor, id } from '@/modules/shared/contracts';
 import { atomic, hash, sameRequest } from '@/modules/shared/transaction';
 import { D, money } from '@/lib/money';
@@ -187,95 +189,114 @@ export async function finalizeSale(actor: Actor, raw: unknown) {
 }
 export async function cancelSale(actor: Actor, raw: unknown) {
   const input = z
-    .object({ saleId: id, reason: z.string().trim().min(5).max(300) })
+    .object({
+      saleId: id,
+      reason: z.string().trim().min(5).max(300),
+      itemsReturned: z.boolean().default(false),
+    })
     .parse(raw);
-  return atomic(async (tx) => {
-    const sale = await tx.sale.findFirst({
-      where: { id: input.saleId, organizationId: actor.organizationId },
-      include: { items: true, payments: true, fiscalDocument: true },
-    });
-    if (!sale) throw new BusinessError('Venda não encontrada.');
-    if (sale.status === 'CANCELLED') return sale;
-    if (
-      sale.fiscalDocument &&
-      sale.fiscalDocument.status !== 'PENDING' &&
-      sale.fiscalDocument.status !== 'CANCELLED'
-    )
-      throw new BusinessError(
-        'Resolva o documento fiscal antes do cancelamento comercial.',
-      );
-    for (const item of [...sale.items].sort((a, b) =>
-      a.productId.localeCompare(b.productId),
-    )) {
-      if (sale.fulfillmentStatus === 'PENDING') {
-        const changed = await tx.product.updateMany({
-          where: {
-            id: item.productId,
-            organizationId: actor.organizationId,
-            reserved: { gte: item.quantity },
-          },
-          data: { reserved: { decrement: item.quantity } },
-        });
-        if (changed.count !== 1)
-          throw new BusinessError('Reserva inconsistente. Revise o pedido.');
-        continue;
-      }
-      const product = await tx.product.findUniqueOrThrow({
-        where: { id: item.productId },
-      });
-      const average = D(product.averageCost.toString())
-        .mul(product.stock)
-        .plus(D(item.unitCost.toString()).mul(item.quantity))
-        .div(product.stock + item.quantity)
-        .toFixed(4);
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { increment: item.quantity }, averageCost: average },
-      });
-      await tx.inventoryMovement.create({
-        data: {
-          organizationId: actor.organizationId,
-          productId: item.productId,
-          type: 'RETURN',
-          quantity: item.quantity,
-          unitCost: item.unitCost,
-          referenceId: sale.id,
-        },
-      });
-    }
-    const received = sale.payments.reduce(
-      (s, p) =>
-        p.direction === 'IN'
-          ? s.plus(p.amount.toString())
-          : s.minus(p.amount.toString()),
-      D(0),
+  return atomic((tx) => cancelSaleInTransaction(tx, actor, input));
+}
+export async function cancelSaleInTransaction(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  input: { saleId: string; reason: string; itemsReturned?: boolean },
+) {
+  const sale = await tx.sale.findFirst({
+    where: { id: input.saleId, organizationId: actor.organizationId },
+    include: { items: true, payments: true, fiscalDocument: true },
+  });
+  if (!sale) throw new BusinessError('Venda não encontrada.');
+  if (sale.status === 'CANCELLED') return sale;
+  await ensureNoPendingFacts(tx, actor, sale.id);
+  if (
+    sale.fiscalDocument &&
+    sale.fiscalDocument.status !== 'PENDING' &&
+    sale.fiscalDocument.status !== 'CANCELLED'
+  )
+    throw new BusinessError(
+      'Resolva o documento fiscal antes do cancelamento comercial.',
     );
-    if (received.gt(0))
-      throw new BusinessError(
-        'Venda já recebida: registre a devolução financeira assistida antes de cancelar. Este fluxo ainda não está disponível.',
-      );
-    await tx.auditLog.create({
+  if (
+    sale.fiscalDocument?.status === 'PENDING' &&
+    sale.fiscalDocument.activeRequestId
+  )
+    throw new BusinessError(
+      'Há uma solicitação fiscal preparada. Resolva-a antes de cancelar.',
+    );
+  const received = sale.payments.reduce(
+    (s, p) =>
+      p.direction === 'IN'
+        ? s.plus(p.amount.toString())
+        : s.minus(p.amount.toString()),
+    D(0),
+  );
+  if (received.gt(0))
+    throw new BusinessError(
+      'Venda já recebida: utilize o cancelamento com reembolso no detalhe do pedido.',
+    );
+  if (sale.fulfillmentStatus === 'COMPLETED' && !input.itemsReturned)
+    throw new BusinessError(
+      'Confirme o retorno físico de todos os produtos antes de repor o estoque.',
+    );
+  for (const item of [...sale.items].sort((a, b) =>
+    a.productId.localeCompare(b.productId),
+  )) {
+    if (sale.fulfillmentStatus === 'PENDING') {
+      const changed = await tx.product.updateMany({
+        where: {
+          id: item.productId,
+          organizationId: actor.organizationId,
+          reserved: { gte: item.quantity },
+        },
+        data: { reserved: { decrement: item.quantity } },
+      });
+      if (changed.count !== 1)
+        throw new BusinessError('Reserva inconsistente. Revise o pedido.');
+      continue;
+    }
+    const product = await tx.product.findUniqueOrThrow({
+      where: { id: item.productId },
+    });
+    const average = D(product.averageCost.toString())
+      .mul(product.stock)
+      .plus(D(item.unitCost.toString()).mul(item.quantity))
+      .div(product.stock + item.quantity)
+      .toFixed(4);
+    await tx.product.update({
+      where: { id: item.productId },
+      data: { stock: { increment: item.quantity }, averageCost: average },
+    });
+    await tx.inventoryMovement.create({
       data: {
         organizationId: actor.organizationId,
-        actorId: actor.userId,
-        type:
-          sale.fulfillmentStatus === 'PENDING'
-            ? 'RESERVATION_RELEASE'
-            : 'RETURN',
-        description: `Venda cancelada: ${input.reason}`,
+        productId: item.productId,
+        type: 'RETURN',
+        quantity: item.quantity,
+        unitCost: item.unitCost,
         referenceId: sale.id,
-        amount: money(sale.total.toString()),
       },
     });
-    return tx.sale.update({
-      where: { id: sale.id },
-      data: {
-        status: 'CANCELLED',
-        cancelledAt: new Date(),
-        cancellationReason: input.reason,
-        version: { increment: 1 },
-      },
-    });
+  }
+  await tx.auditLog.create({
+    data: {
+      organizationId: actor.organizationId,
+      actorId: actor.userId,
+      type:
+        sale.fulfillmentStatus === 'PENDING' ? 'RESERVATION_RELEASE' : 'RETURN',
+      description: `Venda cancelada: ${input.reason}`,
+      referenceId: sale.id,
+      amount: money(sale.total.toString()),
+    },
+  });
+  return tx.sale.update({
+    where: { id: sale.id },
+    data: {
+      status: 'CANCELLED',
+      cancelledAt: new Date(),
+      cancellationReason: input.reason,
+      version: { increment: 1 },
+    },
   });
 }
 

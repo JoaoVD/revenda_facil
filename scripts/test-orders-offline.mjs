@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const bundle = await build({
   stdin: {
-    contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import * as store from './src/modules/sync/local-store'; import {synchronize} from './src/modules/sync/client'; import {OrderWizard} from './src/modules/orders/order-wizard'; window.store=store; window.synchronize=synchronize; window.renderWizard=()=>createRoot(document.getElementById('root')).render(<OrderWizard products={[{id:'11111111-1111-4111-8111-111111111111',name:'Perfume de teste',sku:'TEST',stock:10,salePrice:'90',referenceCost:'40',barcode:null,brand:'TEST'}]} customers={[{id:'22222222-2222-4222-8222-222222222222',name:'Cliente TEST'}]} />);`,
+    contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import * as store from './src/modules/sync/local-store'; import {synchronize} from './src/modules/sync/client'; import {OrderWizard} from './src/modules/orders/order-wizard'; import * as drafts from './src/modules/orders/draft-store'; window.drafts=drafts; window.store=store; window.synchronize=synchronize; window.renderWizard=(scope,price='90')=>createRoot(document.getElementById('root')).render(<OrderWizard scope={scope} products={[{id:'11111111-1111-4111-8111-111111111111',name:'Perfume de teste',sku:'TEST',stock:10,salePrice:price,referenceCost:'40',barcode:null,brand:'TEST'}]} customers={[{id:'22222222-2222-4222-8222-222222222222',name:'Cliente TEST'}]} />);`,
     loader: 'tsx',
     resolveDir: process.cwd(),
   },
@@ -25,10 +25,10 @@ const bundle = await build({
         api.onLoad({ filter: /.*/, namespace: 'stub' }, (args) => ({
           contents:
             args.path === 'next/navigation'
-              ? `export const useRouter=()=>({push(){},refresh(){}});`
+              ? `export const useRouter=()=>({push(path){window.lastRoute=path},refresh(){}});`
               : args.path === 'next/image'
                 ? `import React from 'react'; export default function Image({unoptimized,...props}){return React.createElement('img',props);}`
-                : `export async function operationAction(type,payload){window.lastPayload=payload;return {ok:false,message:'Servidor simulado: confira os dados.'};}`,
+                : `export async function operationAction(type,payload){window.lastPayload=payload;window.actionCalls=(window.actionCalls||[]).concat({type,payload});if(window.failTransport)throw new Error('Response lost');if(window.actionResult)return window.actionResult;return {ok:false,message:'Servidor simulado: confira os dados.'};}`,
           loader: 'js',
           resolveDir: process.cwd(),
         }));
@@ -337,8 +337,122 @@ try {
     });
     await ui.close();
   }
+
+  // Rascunho real: recarregar, recuperar envio incerto e reenviar a MESMA intenção.
+  for (const width of [1366, 390]) {
+    const ui = await context.newPage();
+    await ui.setViewportSize({ width, height: 900 });
+    await bootstrap(ui);
+    await ui.addStyleTag({
+      content: (await fs.readFile('src/app/globals.css', 'utf8')).replace(
+        /@import[^;]+;/g,
+        '',
+      ),
+    });
+    await ui.evaluate((s) => window.renderWizard(s), scope);
+    await ui
+      .getByRole('button', { name: 'Adicionar Perfume de teste' })
+      .click();
+    if (width === 390)
+      await ui.getByRole('button', { name: /Continuar/ }).click();
+    await ui
+      .getByLabel('Cliente', { exact: true })
+      .selectOption('22222222-2222-4222-8222-222222222222');
+    await ui.getByLabel('Endereço de entrega').fill('Rua rascunho TEST, 42');
+    await ui.waitForFunction(
+      async (s) =>
+        (await window.drafts.readOrderDraft(s))?.fields.address ===
+        'Rua rascunho TEST, 42',
+      scope,
+    );
+    const original = await ui.evaluate(
+      (s) => window.drafts.readOrderDraft(s),
+      scope,
+    );
+    await ui.reload();
+    await ui.addScriptTag({ content: bundle.outputFiles[0].text });
+    await ui.addStyleTag({
+      content: (await fs.readFile('src/app/globals.css', 'utf8')).replace(
+        /@import[^;]+;/g,
+        '',
+      ),
+    });
+    await ui.evaluate((s) => window.renderWizard(s), scope);
+    await ui.waitForFunction(() =>
+      document.querySelector('input[value="Rua rascunho TEST, 42"]'),
+    );
+    assert.equal(
+      await ui.getByLabel('Endereço de entrega').inputValue(),
+      'Rua rascunho TEST, 42',
+    );
+    if (width === 390)
+      await ui.getByRole('button', { name: /Continuar/ }).click();
+    await ui.evaluate(() => {
+      window.failTransport = true;
+    });
+    await ui
+      .getByRole('button', { name: 'Confirmar pedido', exact: true })
+      .click();
+    await ui
+      .getByRole('button', { name: 'Tentar confirmar o mesmo pedido' })
+      .waitFor();
+    await ui.waitForFunction(() => window.actionCalls?.length === 1);
+    const outgoing = await ui.evaluate(() => window.lastPayload);
+    assert.equal(outgoing.idempotencyKey, original.id);
+    const persisted = await ui.evaluate(
+      (s) => window.drafts.readOrderDraft(s),
+      scope,
+    );
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(persisted.submission)),
+      JSON.parse(JSON.stringify(outgoing)),
+    );
+    await ui.reload();
+    await ui.addScriptTag({ content: bundle.outputFiles[0].text });
+    await ui.addStyleTag({
+      content: (await fs.readFile('src/app/globals.css', 'utf8')).replace(
+        /@import[^;]+;/g,
+        '',
+      ),
+    });
+    await ui.evaluate((s) => window.renderWizard(s, '120'), scope);
+    await ui
+      .getByRole('button', { name: 'Tentar confirmar o mesmo pedido' })
+      .click();
+    await ui.waitForFunction(() => window.actionCalls?.length === 1);
+    assert.deepEqual(
+      await ui.evaluate(() => JSON.parse(JSON.stringify(window.lastPayload))),
+      JSON.parse(JSON.stringify(outgoing)),
+    );
+    assert.equal(
+      await ui.getByLabel('Cliente', { exact: true }).isDisabled(),
+      true,
+    );
+    assert.equal(
+      await ui.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+    );
+    await ui.screenshot({
+      path: `artifacts/orders/draft-recovery-${width}.png`,
+      fullPage: true,
+    });
+    await ui.evaluate((id) => {
+      window.actionResult = { ok: true, id, message: 'Confirmado' };
+    }, original.id);
+    await ui
+      .getByRole('button', { name: 'Tentar confirmar o mesmo pedido' })
+      .click();
+    await ui.waitForFunction(() => window.lastRoute?.startsWith('/pedidos/'));
+    assert.equal(
+      await ui.evaluate((s) => window.drafts.readOrderDraft(s), scope),
+      undefined,
+    );
+    await ui.close();
+  }
   console.log(
-    'PASS: IndexedDB reload/reopen, account isolation, atomic enqueue, two-tab lease, expired session preservation, ordered ORDER/PAYMENT sync; desktop/mobile wizard, back/error state preservation, no horizontal overflow. HTTP boundaries simulated.',
+    'PASS: IndexedDB reload/reopen, account isolation, atomic enqueue, two-tab lease, expired session preservation, ordered ORDER/PAYMENT sync; desktop/mobile wizard, draft reload and exact retry after lost response, deletion only after acknowledgement, back/error state preservation, no horizontal overflow. HTTP boundaries simulated.',
   );
 } finally {
   await context.close();
