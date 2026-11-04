@@ -25,7 +25,7 @@ npm run backup:create -- backups/revenda-AAAA-MM-DD.dump
 npm run backup:restore-test -- backups/revenda-AAAA-MM-DD.dump
 ```
 
-O backup usa formato custom, nome exclusivo, arquivo parcial e permissões restritas. Falhas não deixam um arquivo final anunciado como completo. Credenciais passam pelo ambiente dos subprocessos, não pelos argumentos ou mensagens de erro. Transfira o dump para armazenamento criptografado; o arquivo em si contém dados pessoais e não é criptografado pelo comando.
+O backup usa formato custom, nome exclusivo, arquivo parcial e permissões restritas. Falhas não deixam um arquivo final anunciado como completo. Credenciais passam pelo ambiente dos subprocessos, não pelos argumentos ou mensagens de erro. Conexões remotas usam `sslmode=verify-full` por padrão; configure a CA exigida pelo provedor via `PGSSLROOTCERT` e evite modos que desativem a verificação TLS. Transfira o dump para armazenamento criptografado; o arquivo em si contém dados pessoais e não é criptografado pelo comando.
 
 O ensaio recusa destinos remotos, nomes fora de `revenda_restore_*` e bancos não vazios; não apaga tabelas. Restaura com interrupção em erro e verifica migrations, saldos e valores financeiros. Após falha, recrie apenas o banco descartável. O CI executa ida e volta com uma fixture sintética e verifica seu conteúdo; também testa bloqueio de sobrescrita, origem e banco não vazio.
 

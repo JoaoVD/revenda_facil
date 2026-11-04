@@ -7,7 +7,7 @@ CREATE TABLE "OrderChange" (
  "type" TEXT NOT NULL CHECK ("type" IN ('EDIT','REFUND_CANCEL')), "version" INTEGER NOT NULL CHECK ("version" > 1),
  "requestHash" TEXT NOT NULL, "payload" JSONB NOT NULL, "before" JSONB NOT NULL,
  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY ("organizationId", "saleId") REFERENCES "Sale"("organizationId", "id") ON DELETE RESTRICT
+ FOREIGN KEY ("organizationId", "saleId") REFERENCES "Sale"("organizationId", "id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX "OrderChange_organizationId_saleId_version_key" ON "OrderChange"("organizationId", "saleId", "version");
 ALTER TABLE "Payment" DROP CONSTRAINT "payment_target";

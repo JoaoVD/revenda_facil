@@ -16,7 +16,11 @@ export function connection(value) {
       PGUSER: decodeURIComponent(url.username),
       PGPASSWORD: decodeURIComponent(url.password),
       PGDATABASE: database,
-      PGSSLMODE: url.searchParams.get('sslmode') || 'prefer',
+      PGSSLMODE:
+        url.searchParams.get('sslmode') ||
+        (['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+          ? 'prefer'
+          : 'verify-full'),
       PGCONNECT_TIMEOUT: '15',
       PGAPPNAME: 'revenda-backup',
     },

@@ -14,8 +14,6 @@ Revenda Facil.exe
 artifacts/
 .cache/
 
-
 # Backups comerciais: nunca versionar dados reais.
-backups/
 *.dump
 *.dump.partial

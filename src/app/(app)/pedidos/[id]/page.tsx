@@ -170,13 +170,19 @@ export default async function OrderDetail({
         </div>
         <div className="payment-amounts">
           <div>
-            Já recebido<strong>{brl(received)}</strong>
+            Líquido recebido<strong>{brl(received)}</strong>
           </div>
           <div>
             Falta receber<strong>{brl(balance)}</strong>
           </div>
         </div>
         {s.agreementNotes && <p>Combinado: {s.agreementNotes}</p>}
+        {!active && s.installments.length > 0 && (
+          <p className="hint">
+            Plano anterior ao cancelamento, mantido apenas para histórico. Não
+            há cobrança pendente deste pedido.
+          </p>
+        )}
         {s.installments.length ? (
           <ol className="installment-list">
             {s.installments.map((part) => (
@@ -190,7 +196,8 @@ export default async function OrderDetail({
                     : 'Sem vencimento'}
                 </span>
                 <small>
-                  Recebido: {brl(part.received.toString())} · Falta:{' '}
+                  Recebido no plano: {brl(part.received.toString())} ·{' '}
+                  {active ? 'Falta:' : 'Saldo histórico:'}{' '}
                   {brl(
                     D(part.amount.toString()).minus(part.received.toString()),
                   )}
