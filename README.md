@@ -54,6 +54,8 @@ npm run test:e2e
 
 `test:embedded` aplica migrations em PGlite descartável e verifica serviços reais. PGlite é uma ferramenta de teste, não o banco de execução do SaaS. Não comprova concorrência PostgreSQL com conexões independentes.
 
+Os testes de recuperação offline do Vitest usam IndexedDB emulado (`fake-indexeddb`) e HTTP simulado. Cobrem indisponibilidade prolongada, resposta perdida, idempotência local, confirmação inválida, coordenação entre abas e distinção entre falha temporária e conflito comercial. Não substituem testes em navegador físico. A fila retoma automaticamente falhas temporárias com intervalos progressivos; pausas antigas por limite de transporte são recuperadas sem reabrir rejeições comerciais.
+
 Para integração PostgreSQL, use banco descartável migrado e `TEST_DATABASE_URL`. Para a corrida entre conexões independentes, defina também `TEST_POSTGRES_CONCURRENCY=1`. Nunca aponte testes para o banco comercial. O workflow `.github/workflows/quality.yml` utiliza PostgreSQL 17.
 
 Testes de componentes usam Chrome instalado (`UX_BROWSER_CHANNEL=chrome` por padrão) e fronteiras HTTP simuladas. Playwright E2E usa o SaaS real. Os testes autenticados exigem conta e organização de teste, `E2E_EMAIL`, `E2E_PASSWORD` e `E2E_ALLOW_WRITES=true`. O fluxo offline adicional exige `E2E_PRODUCT_ID`, `E2E_PRODUCT_NAME` e `E2E_CUSTOMER_ID`: produto ativo a R$ 100, pelo menos dez unidades livres e cliente da organização. Testes rodam em série, criam dados identificados como TEST/E2E e exigem ambiente descartável. Não há bypass de autenticação para testes.
@@ -63,3 +65,4 @@ Testes de componentes usam Chrome instalado (`UX_BROWSER_CHANNEL=chrome` por pad
 Snapshots locais são limitados; sincronização incremental e resolução assistida de conflitos não estão concluídas. Também faltam rascunhos editáveis, edição do atendimento, devolução financeira, outros meios de pagamento e alocação entre compras. Lembretes internos funcionam; inscrição e transporte push remoto dependem de implementação e configuração adicionais. Instalação PWA e teclado virtual físico de Android/iOS precisam de homologação. Relatórios avançados continuam em desenvolvimento.
 
 Escopo da remoção de componentes não SaaS e verificações: [limpeza do projeto](docs/LIMPEZA_SAAS.md).
+

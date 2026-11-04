@@ -32,6 +32,18 @@ export async function synchronize(scope: Scope): Promise<string> {
       a.capturedAt.localeCompare(b.capturedAt),
     );
     for (const command of commands) {
+      // Recuperar somente a pausa de transporte criada pela versão anterior.
+      // Rejeições comerciais continuam exigindo conferência.
+      if (
+        command.state === 'ATTENTION' &&
+        command.attempts >= 8 &&
+        command.message ===
+          'Tentativas esgotadas. Informação preservada. Confira a conexão e solicite nova tentativa.'
+      ) {
+        command.state = 'PENDING';
+        command.nextAttemptAt = 0;
+        await updateCommand(command);
+      }
       if (
         command.state === 'APPLIED' ||
         command.state === 'ATTENTION' ||
@@ -84,11 +96,10 @@ export async function synchronize(scope: Scope): Promise<string> {
         command.nextAttemptAt =
           Date.now() +
           Math.min(300000, 2000 * 2 ** Math.min(command.attempts, 8));
-        if (command.attempts >= 8) {
-          command.state = 'ATTENTION';
-          command.message =
-            'Tentativas esgotadas. Informação preservada. Confira a conexão e solicite nova tentativa.';
-        }
+        // Falha de transporte não prova rejeição: o servidor pode ter aplicado
+        // a operação antes de perdermos a resposta. Reenviar sempre o mesmo ID.
+        command.message =
+          'Sem confirmação do servidor. Ação preservada; nova tentativa automática.';
         await updateCommand(command);
         // Continuar permite enviar os fatos dependentes ao registro auditável.
       }

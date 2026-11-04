@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { createProduct, listProducts } from '@/modules/products/service';
 import { receivePurchase } from '@/modules/purchases/service';
@@ -463,6 +463,65 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
       }),
     ).rejects.toThrow('outros dados');
     await expect(syncCommand(b, okCommand)).rejects.toThrow('conta');
+  });
+  it('recupera recebimento aplicado após dez falhas de confirmação sem duplicar dinheiro', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const s = await sale(p.id, 1);
+    const command = {
+      id: crypto.randomUUID(),
+      contractVersion: 1,
+      organizationId: a.organizationId,
+      userId: a.userId,
+      type: 'PAYMENT',
+      capturedAt: new Date().toISOString(),
+      dependencies: [],
+      payload: {
+        idempotencyKey: crypto.randomUUID(),
+        kind: 'SALE',
+        referenceId: s.id,
+        amount: '60',
+        method: 'PIX',
+        description: 'Recebimento offline TEST',
+      },
+    };
+    const update = vi.spyOn(db.syncCommand, 'update');
+    try {
+      for (let i = 0; i < 10; i++) {
+        update.mockRejectedValueOnce(
+          new Error('TEST: confirmação indisponível'),
+        );
+        await expect(syncCommand(a, command)).rejects.toThrow(
+          'confirmação indisponível',
+        );
+      }
+      const recovered = await syncCommand(a, command);
+      expect(recovered.status).toBe('APPLIED');
+      expect(recovered.attempts).toBe(11);
+      expect(await db.payment.count({ where: { saleId: s.id } })).toBe(1);
+      expect(
+        await db.auditLog.count({
+          where: {
+            referenceId: (recovered.result as { id: string }).id,
+            type: 'RECEIPT',
+          },
+        }),
+      ).toBe(1);
+      expect((await syncCommand(a, command)).result).toEqual(recovered.result);
+      // Simula o estado deixado pela versão que parava definitivamente após 8 falhas.
+      await db.syncCommand.update({
+        where: { id: command.id },
+        data: {
+          status: 'ATTENTION',
+          message:
+            'Limite de tentativas. Informação preservada para conferência.',
+        },
+      });
+      expect((await syncCommand(a, command)).status).toBe('APPLIED');
+      expect(await db.payment.count({ where: { saleId: s.id } })).toBe(1);
+    } finally {
+      update.mockRestore();
+    }
   });
   it('recebimentos concorrentes não excedem saldo e não alteram reserva', async () => {
     const p = await product();

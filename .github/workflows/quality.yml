@@ -17,6 +17,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://revenda:test_only_password@localhost:5432/revenda_test
       TEST_DATABASE_URL: postgresql://revenda:test_only_password@localhost:5432/revenda_test
+      TEST_POSTGRES_CONCURRENCY: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,4 +30,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint -- --max-warnings=0
       - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:orders:browser
+        env:
+          UX_BROWSER_CHANNEL: chromium
       - run: npm run build
