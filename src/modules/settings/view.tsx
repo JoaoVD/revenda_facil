@@ -4,6 +4,7 @@ import { SettingsForm } from '@/components/domain-forms';
 import { FiscalConfiguration } from '@/modules/fiscal/configuration-view';
 import { db } from '@/lib/db';
 import { ReminderSettings } from '@/modules/reminders/forms';
+import { PushSettings } from '@/modules/reminders/push-settings';
 export async function SettingsView({ actor }: ViewProps) {
   const org = actor.organization;
   const reminder = await db.reminderPreference.findUnique({
@@ -60,6 +61,7 @@ export async function SettingsView({ actor }: ViewProps) {
             }
           }
         />
+        <PushSettings />
       </Card>
     </>
   );
