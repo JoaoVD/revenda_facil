@@ -81,19 +81,27 @@ export async function applySyncCommand(actor: Actor, commandId: string) {
       status: 'APPLIED',
     },
   });
-  if (dependencies !== new Set(input.dependencies).size)
-    return db.syncCommand.update({
-      where: { id: input.id },
+  if (dependencies !== new Set(input.dependencies).size) {
+    await db.syncCommand.updateMany({
+      where: {
+        id: input.id,
+        resolutionVersion: command.resolutionVersion,
+        status: { in: ['PENDING', 'WAITING'] },
+        OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
+      },
       data: {
         status: 'WAITING',
         message:
           'Registro preservado. Aguardando aplicação ou reconciliação do comando anterior.',
       },
     });
+    return db.syncCommand.findUniqueOrThrow({ where: { id: input.id } });
+  }
   const now = new Date();
   const lease = await db.syncCommand.updateMany({
     where: {
       id: input.id,
+      resolutionVersion: command.resolutionVersion,
       status: { in: ['PENDING', 'WAITING'] },
       OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }],
     },

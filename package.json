@@ -19,7 +19,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "test:embedded": "node scripts/test-embedded.mjs",
-    "test:orders:browser": "node scripts/test-orders-offline.mjs",
+    "test:orders:browser": "node scripts/test-orders-offline.mjs && node scripts/test-order-controls.mjs",
     "test:orders:e2e": "playwright test tests/e2e/orders-offline.spec.ts",
     "backup:create": "node scripts/backup/create.mjs",
     "backup:restore-test": "node scripts/backup/restore-test.mjs"
