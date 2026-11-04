@@ -21,7 +21,12 @@ export type Snapshot = Scope & {
     active: boolean;
     salePrice: string;
   }[];
-  customers: { id: string; name: string; active: boolean }[];
+  customers: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    active: boolean;
+  }[];
   sales: {
     id: string;
     customerId: string | null;

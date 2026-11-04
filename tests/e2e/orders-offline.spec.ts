@@ -43,7 +43,16 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
     .click();
   if (viewport.width === 390)
     await page.getByRole('button', { name: /Continuar/ }).click();
-  await page.getByLabel('Cliente', { exact: true }).selectOption(customerId);
+  const customerName = initial.customers.find(
+    (c: { id: string }) => c.id === customerId,
+  ).name;
+  await page.getByLabel('Cliente', { exact: true }).fill(customerName);
+  await page
+    .getByRole('button', {
+      name: `Selecionar ${customerName}${initial.customers.find((c: { id: string }) => c.id === customerId).phone ? ' · ' + initial.customers.find((c: { id: string }) => c.id === customerId).phone : ''}`,
+      exact: true,
+    })
+    .click();
   await page.getByLabel('Endereço de entrega').fill('Rua TEST, 120');
   if (viewport.width === 390)
     await page.getByRole('button', { name: /Continuar/ }).click();
@@ -189,7 +198,10 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
     await page.getByRole('button', { name: /Continuar/ }).click();
     await page
       .getByLabel('Cliente', { exact: true })
-      .selectOption({ label: 'Cliente OFFLINE TEST' });
+      .fill('Cliente OFFLINE TEST');
+    await page
+      .getByRole('button', { name: /^Selecionar Cliente OFFLINE TEST/ })
+      .click();
     await page.getByLabel('Como será o atendimento?').selectOption('PICKUP');
     await page.getByRole('button', { name: /Continuar/ }).click();
     await page

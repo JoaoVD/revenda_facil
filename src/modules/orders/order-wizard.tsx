@@ -8,6 +8,7 @@ import { Field, Select, Card } from '@/components/ui';
 import { brl, D } from '@/lib/money';
 import type { ProductOption } from '@/modules/products/contracts';
 import { localCommands, type Scope } from '@/modules/sync/local-store';
+import { CustomerPicker } from '@/modules/customers/customer-picker';
 import { useOrderDraft } from './use-order-draft';
 
 export function OrderWizard({
@@ -19,7 +20,7 @@ export function OrderWizard({
   scope,
 }: {
   products: ProductOption[];
-  customers: { id: string; name: string }[];
+  customers: { id: string; name: string; phone?: string | null }[];
   commit?: (payload: Record<string, unknown>) => Promise<Result>;
   onConfirmed?: (id: string) => void;
   provisional?: boolean;
@@ -30,6 +31,10 @@ export function OrderWizard({
   const [cart, setCart] = useState<Record<string, number>>({});
   const [customerId, setCustomer] = useState(''),
     [mode, setMode] = useState('DELIVERY');
+  const [customerName, setCustomerName] = useState(''),
+    [customerPhone, setCustomerPhone] = useState(''),
+    [quickCustomerId, setQuickCustomerId] = useState(() => crypto.randomUUID()),
+    [forceNewCustomer, setForceNewCustomer] = useState(false);
   const [address, setAddress] = useState(''),
     [expectedDate, setDate] = useState(''),
     [notes, setNotes] = useState('');
@@ -51,6 +56,10 @@ export function OrderWizard({
       search,
       cart,
       customerId,
+      customerName,
+      customerPhone,
+      quickCustomerId,
+      forceNewCustomer,
       mode,
       address,
       expectedDate,
@@ -67,6 +76,14 @@ export function OrderWizard({
       setSearch(value.search);
       setCart(value.cart);
       setCustomer(value.customerId);
+      setCustomerName(
+        value.customerName ??
+          customers.find((c) => c.id === value.customerId)?.name ??
+          '',
+      );
+      setCustomerPhone(value.customerPhone || '');
+      setQuickCustomerId(value.quickCustomerId || crypto.randomUUID());
+      setForceNewCustomer(value.forceNewCustomer || false);
       setMode(value.mode);
       setAddress(value.address);
       setDate(value.expectedDate);
@@ -108,6 +125,42 @@ export function OrderWizard({
       setMessage('Confira os produtos, desconto e recebimento.');
       return;
     }
+    if (
+      !draft.submission &&
+      customerName.trim() &&
+      !customerId &&
+      !forceNewCustomer &&
+      customers.some((c) =>
+        c.name
+          .trim()
+          .toLocaleLowerCase('pt-BR')
+          .includes(customerName.trim().toLocaleLowerCase('pt-BR')),
+      )
+    ) {
+      setMessage(
+        'Escolha um cliente encontrado ou confirme que é outra pessoa.',
+      );
+      return;
+    }
+    if (
+      !draft.submission &&
+      customerName.trim() &&
+      customerName.trim().length < 2
+    ) {
+      setMessage('Informe ao menos dois caracteres para o nome do cliente.');
+      return;
+    }
+    if (
+      !draft.submission &&
+      !customerId &&
+      !customerName.trim() &&
+      (mode !== 'IMMEDIATE' || balance.gt(0))
+    ) {
+      setMessage(
+        'Informe o nome do cliente para acompanhar este pedido ou valor a receber.',
+      );
+      return;
+    }
     submitting.current = true;
     start(async () => {
       try {
@@ -116,6 +169,14 @@ export function OrderWizard({
           orderId: scope ? draft.id : undefined,
           expectedTotal: total.toFixed(2),
           customerId: customerId || undefined,
+          newCustomer:
+            !customerId && customerName.trim()
+              ? {
+                  id: quickCustomerId,
+                  name: customerName.trim(),
+                  phone: customerPhone.trim(),
+                }
+              : undefined,
           fulfillmentMode: mode,
           address,
           expectedDate: expectedDate || undefined,
@@ -385,26 +446,28 @@ export function OrderWizard({
             </ul>
             <div className={step !== 2 ? 'mobile-step-hidden' : ''}>
               <p className="step-label">2 de 3 · Cliente e atendimento</p>
-              <Select
-                label="Cliente"
-                value={customerId}
-                onChange={(e) => setCustomer(e.target.value)}
-              >
-                <option value="">Selecione</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-              <a
-                className="text-link"
-                href="/clientes"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Cadastrar cliente em outra aba
-              </a>
+              <CustomerPicker
+                customers={customers}
+                name={customerName}
+                selectedId={customerId}
+                phone={customerPhone}
+                forceNew={forceNewCustomer}
+                onName={(value) => {
+                  setCustomerName(value);
+                  setCustomer('');
+                  setForceNewCustomer(false);
+                }}
+                onSelect={(id, name) => {
+                  setCustomer(id);
+                  setCustomerName(name);
+                  setForceNewCustomer(false);
+                }}
+                onPhone={setCustomerPhone}
+                onForceNew={() => {
+                  setCustomer('');
+                  setForceNewCustomer(true);
+                }}
+              />
               <Select
                 label="Como será o atendimento?"
                 value={mode}

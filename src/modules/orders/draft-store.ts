@@ -12,6 +12,10 @@ export const draftFields = z.object({
     .record(z.string(), z.number().int().min(0).max(1000000))
     .refine((v) => Object.keys(v).length <= 100),
   customerId: z.string().max(40),
+  customerName: z.string().max(120).optional(),
+  customerPhone: z.string().max(20).optional(),
+  quickCustomerId: z.string().max(40).optional(),
+  forceNewCustomer: z.boolean().optional(),
   mode: z.string().max(20),
   address: z.string().max(500),
   expectedDate: z.string().max(10),
