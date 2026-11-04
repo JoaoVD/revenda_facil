@@ -33,6 +33,7 @@ const bundle = await build({
         );
         api.onLoad({ filter: /.*/, namespace: 'stub' }, (args) => ({
           loader: 'js',
+          resolveDir: process.cwd(),
           contents:
             args.path === 'next/navigation'
               ? `export const useRouter=()=>({push(){},refresh(){}});`
