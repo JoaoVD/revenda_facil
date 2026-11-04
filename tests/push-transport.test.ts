@@ -10,16 +10,16 @@ vi.mock('web-push', () => ({ default: { sendNotification: vi.fn() } }));
 function keys() {
   const key = createECDH('prime256v1');
   key.generateKeys();
+  const raw = key.getPrivateKey();
+  const privateKey = Buffer.alloc(32);
+  raw.copy(privateKey, 32 - raw.length);
   return {
     publicKey: key.getPublicKey().toString('base64url'),
-    privateKey: key.getPrivateKey().toString('base64url').padStart(43, 'A'),
+    privateKey: privateKey.toString('base64url'),
   };
 }
-const key = createECDH('prime256v1');
-key.generateKeys();
 const config = {
-  publicKey: key.getPublicKey().toString('base64url'),
-  privateKey: key.getPrivateKey().toString('base64url'),
+  ...keys(),
   subject: 'mailto:test@example.com',
 };
 const sub = {
