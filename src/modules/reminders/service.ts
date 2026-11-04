@@ -64,11 +64,15 @@ export async function dueNotice(organizationId: string, now = new Date()) {
   const period = reminderPeriod(preference, now);
   if (!period || !(await hasReceivables(organizationId, preference.scope, now)))
     return null;
-  const notice = await db.reminderNotice.upsert({
-    where: { organizationId_period: { organizationId, period } },
-    create: { organizationId, period },
-    update: {},
-  });
+  // Upsert com update vazio pode virar leitura + criação no Prisma. Dois
+  // aparelhos disputam a chave mensal; reutilizar o retry transacional P2002.
+  const notice = await atomic((tx) =>
+    tx.reminderNotice.upsert({
+      where: { organizationId_period: { organizationId, period } },
+      create: { organizationId, period },
+      update: {},
+    }),
+  );
   if (notice.reviewedAt || (notice.snoozedUntil && notice.snoozedUntil > now))
     return null;
   return notice;

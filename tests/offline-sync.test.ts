@@ -185,4 +185,26 @@ describe('recuperação da fila persistente', () => {
     ).rejects.toThrow();
     expect(await localCommands(scope)).toHaveLength(1);
   });
+
+  it('campos opcionais não preenchidos têm a mesma representação do envio JSON', async () => {
+    const input = command();
+    await enqueue({
+      ...input,
+      payload: {
+        ...input.payload,
+        expectedDate: undefined,
+        installments: [{ amount: '60', dueDate: undefined }],
+      } as unknown as Command['payload'],
+    });
+    await enqueue({
+      ...input,
+      payload: { ...input.payload, installments: [{ amount: '60' }] },
+    });
+    const saved = await localCommands(scope);
+    expect(saved).toHaveLength(1);
+    expect(saved[0].payload).toEqual({
+      ...input.payload,
+      installments: [{ amount: '60' }],
+    });
+  });
 });

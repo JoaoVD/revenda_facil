@@ -575,6 +575,11 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
       dueNotice(b.organizationId, now),
     ]);
     expect(notices[0]?.id).toBe(notices[1]?.id);
+    expect(
+      await db.reminderNotice.count({
+        where: { organizationId: b.organizationId, period: '2027-02' },
+      }),
+    ).toBe(1);
     await db.pushSubscription.create({
       data: {
         organizationId: b.organizationId,
