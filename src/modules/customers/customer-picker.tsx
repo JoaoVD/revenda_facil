@@ -69,7 +69,7 @@ export function CustomerPicker({
             <p className="hint">
               {!forceNew && matches.length
                 ? 'Escolha o cadastro correto ou confirme que é outra pessoa.'
-                : 'Este cliente será cadastrado junto com o pedido. Complete os dados depois, se precisar.'}
+                : 'Este cliente será cadastrado junto com o pedido, sem sair desta tela.'}
             </p>
             <Field
               label="Telefone do novo cliente (opcional)"
