@@ -302,9 +302,13 @@ try {
       .click();
     if (viewport.width === 390)
       await ui.getByRole('button', { name: /Continuar/ }).click();
+    await ui.getByLabel('Cliente', { exact: true }).fill('Cliente TEST');
     await ui
-      .getByLabel('Cliente', { exact: true })
-      .selectOption('22222222-2222-4222-8222-222222222222');
+      .getByRole('button', {
+        name: 'Selecionar Cliente TEST',
+        exact: true,
+      })
+      .click();
     await ui.getByLabel('Endereço de entrega').fill('Rua TEST, 120');
     if (viewport.width === 390) {
       await ui.getByRole('button', { name: /Continuar/ }).click();
@@ -331,6 +335,21 @@ try {
       ),
       true,
     );
+    await ui.getByLabel('Cliente', { exact: true }).fill('Cliente novo TEST');
+    await ui
+      .getByLabel('Telefone do novo cliente (opcional)')
+      .fill('16999990000');
+    if (viewport.width === 390)
+      await ui.getByRole('button', { name: /Continuar/ }).click();
+    await ui
+      .getByRole('button', { name: 'Confirmar pedido', exact: true })
+      .click();
+    await ui.waitForFunction(
+      () => window.lastPayload?.newCustomer?.name === 'Cliente novo TEST',
+    );
+    const quick = await ui.evaluate(() => window.lastPayload.newCustomer);
+    assert.equal(quick.phone, '16999990000');
+    assert.match(quick.id, /^[0-9a-f-]{36}$/);
     await ui.screenshot({
       path: `artifacts/orders/wizard-${viewport.width}.png`,
       fullPage: true,
@@ -355,9 +374,13 @@ try {
       .click();
     if (width === 390)
       await ui.getByRole('button', { name: /Continuar/ }).click();
+    await ui.getByLabel('Cliente', { exact: true }).fill('Cliente TEST');
     await ui
-      .getByLabel('Cliente', { exact: true })
-      .selectOption('22222222-2222-4222-8222-222222222222');
+      .getByRole('button', {
+        name: 'Selecionar Cliente TEST',
+        exact: true,
+      })
+      .click();
     await ui.getByLabel('Endereço de entrega').fill('Rua rascunho TEST, 42');
     await ui.waitForFunction(
       async (s) =>

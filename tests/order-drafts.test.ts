@@ -143,3 +143,25 @@ it('a migração IndexedDB mantém os registros existentes da versão 1', async 
   reopened.close();
   expect(value).toBe('preserved');
 });
+
+it('rascunho preserva nome livre e identificador estável do cliente novo', async () => {
+  const quickCustomerId = crypto.randomUUID();
+  await saveOrderDraft(
+    scope,
+    {
+      id: crypto.randomUUID(),
+      fields: {
+        ...fields,
+        customerName: 'Ana TEST',
+        customerPhone: '16999990000',
+        quickCustomerId,
+        forceNewCustomer: true,
+      },
+    },
+    null,
+  );
+  const saved = await readOrderDraft(scope);
+  expect(saved?.fields.quickCustomerId).toBe(quickCustomerId);
+  expect(saved?.fields.customerName).toBe('Ana TEST');
+  expect(saved?.fields.forceNewCustomer).toBe(true);
+});

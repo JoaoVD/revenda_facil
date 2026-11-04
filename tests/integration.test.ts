@@ -1303,4 +1303,117 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
       (await db.product.findUniqueOrThrow({ where: { id: p.id } })).reserved,
     ).toBe(0);
   });
+  it('cliente rápido e pedido são atômicos, idempotentes e preservam homônimos', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const quick = {
+      id: crypto.randomUUID(),
+      name: 'Cliente rápido TEST',
+      phone: '16999990000',
+    };
+    const input = {
+      idempotencyKey: crypto.randomUUID(),
+      newCustomer: quick,
+      items: [{ productId: p.id, quantity: 1 }],
+      fulfillmentMode: 'PICKUP',
+      method: 'PIX',
+      paid: '20',
+    };
+    const [first, second] = await Promise.all([
+      finalizeSale(a, input),
+      finalizeSale(a, input),
+    ]);
+    expect(first.id).toBe(second.id);
+    expect(first.customerId).toBe(quick.id);
+    expect(await db.customer.count({ where: { id: quick.id } })).toBe(1);
+    expect(
+      await db.auditLog.count({
+        where: { referenceId: quick.id, type: 'CUSTOMER' },
+      }),
+    ).toBe(1);
+    expect(
+      (await db.customer.findUniqueOrThrow({ where: { id: quick.id } })).phone,
+    ).toBe(quick.phone);
+    const other = await finalizeSale(a, {
+      ...input,
+      idempotencyKey: crypto.randomUUID(),
+      newCustomer: { ...quick, id: crypto.randomUUID() },
+    });
+    expect(other.customerId).not.toBe(quick.id);
+    await expect(
+      finalizeSale(b, { ...input, idempotencyKey: crypto.randomUUID() }),
+    ).rejects.toThrow('Cadastro rápido mudou');
+    await expect(
+      finalizeSale(a, {
+        ...input,
+        idempotencyKey: crypto.randomUUID(),
+        customerId,
+      }),
+    ).rejects.toThrow('Escolha um cadastro');
+  });
+  it('falha de estoque não deixa cliente rápido órfão', async () => {
+    const p = await product();
+    const quick = { id: crypto.randomUUID(), name: 'Não deve persistir TEST' };
+    await expect(
+      finalizeSale(a, {
+        idempotencyKey: crypto.randomUUID(),
+        newCustomer: quick,
+        items: [{ productId: p.id, quantity: 1 }],
+        method: 'PIX',
+        fulfillmentMode: 'PICKUP',
+      }),
+    ).rejects.toThrow('Estoque insuficiente');
+    expect(await db.customer.count({ where: { id: quick.id } })).toBe(0);
+    expect(await db.auditLog.count({ where: { referenceId: quick.id } })).toBe(
+      0,
+    );
+  });
+  it('pedido offline com cliente rápido libera recebimento dependente uma única vez', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const orderId = crypto.randomUUID(),
+      quickId = crypto.randomUUID();
+    const order = {
+      ...a,
+      id: crypto.randomUUID(),
+      contractVersion: 1,
+      type: 'ORDER',
+      capturedAt: new Date().toISOString(),
+      dependencies: [],
+      payload: {
+        orderId,
+        idempotencyKey: crypto.randomUUID(),
+        newCustomer: { id: quickId, name: 'Cliente offline rápido TEST' },
+        fulfillmentMode: 'PICKUP',
+        method: 'PIX',
+        items: [{ productId: p.id, quantity: 1 }],
+      },
+    };
+    const receipt = {
+      ...a,
+      id: crypto.randomUUID(),
+      contractVersion: 1,
+      type: 'PAYMENT',
+      capturedAt: new Date().toISOString(),
+      dependencies: [order.id],
+      payload: {
+        idempotencyKey: crypto.randomUUID(),
+        kind: 'SALE',
+        referenceId: orderId,
+        amount: '50',
+        method: 'PIX',
+        description: 'Recebido offline TEST',
+      },
+    };
+    expect((await syncCommand(a, receipt)).status).toBe('WAITING');
+    expect((await syncCommand(a, order)).status).toBe('APPLIED');
+    expect((await syncCommand(a, receipt)).status).toBe('APPLIED');
+    await syncCommand(a, order);
+    await syncCommand(a, receipt);
+    expect(await db.customer.count({ where: { id: quickId } })).toBe(1);
+    expect(
+      (await db.sale.findUniqueOrThrow({ where: { id: orderId } })).customerId,
+    ).toBe(quickId);
+    expect(await db.payment.count({ where: { saleId: orderId } })).toBe(1);
+  });
 });

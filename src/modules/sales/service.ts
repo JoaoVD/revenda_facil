@@ -22,11 +22,52 @@ export async function finalizeSale(actor: Actor, raw: unknown) {
       sameRequest(existing.requestHash, input);
       return existing;
     }
+    if (input.customerId && input.newCustomer)
+      throw new BusinessError(
+        'Escolha um cadastro existente ou informe um cliente novo.',
+      );
+    let customerId = input.customerId;
+    if (input.newCustomer) {
+      const quick = input.newCustomer;
+      const previous = await tx.customer.findUnique({
+        where: { id: quick.id },
+      });
+      if (previous) {
+        if (
+          previous.organizationId !== actor.organizationId ||
+          !previous.active ||
+          previous.name !== quick.name ||
+          (previous.phone || '') !== quick.phone
+        )
+          throw new BusinessError(
+            'Cadastro rápido mudou. Confira o cliente antes de continuar.',
+          );
+      } else {
+        await tx.customer.create({
+          data: {
+            id: quick.id,
+            name: quick.name,
+            phone: quick.phone,
+            organizationId: actor.organizationId,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            organizationId: actor.organizationId,
+            actorId: actor.userId,
+            type: 'CUSTOMER',
+            referenceId: quick.id,
+            description: 'Cliente cadastrado na confirmação do pedido',
+          },
+        });
+      }
+      customerId = quick.id;
+    }
     if (
       input.customerId &&
       !(await tx.customer.findFirst({
         where: {
-          id: input.customerId,
+          id: customerId,
           organizationId: actor.organizationId,
           active: true,
         },
@@ -62,12 +103,12 @@ export async function finalizeSale(actor: Actor, raw: unknown) {
       throw new BusinessError(
         'Desconto ou recebimento maior que o valor da venda.',
       );
-    if (D(input.paid).lt(total) && !input.customerId)
+    if (D(input.paid).lt(total) && !customerId)
       throw new BusinessError(
         'Escolha um cliente para acompanhar o valor a receber.',
       );
     const immediate = input.fulfillmentMode === 'IMMEDIATE';
-    if (!immediate && !input.customerId)
+    if (!immediate && !customerId)
       throw new BusinessError('Escolha um cliente para o pedido.');
     if (input.fulfillmentMode === 'DELIVERY' && !input.address.trim())
       throw new BusinessError('Informe o endereço de entrega.');
@@ -93,7 +134,7 @@ export async function finalizeSale(actor: Actor, raw: unknown) {
       data: {
         id: input.orderId,
         organizationId: actor.organizationId,
-        customerId: input.customerId,
+        customerId,
         subtotal: money(subtotal),
         discount: input.discount,
         total: money(total),

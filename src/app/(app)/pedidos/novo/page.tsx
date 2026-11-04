@@ -9,7 +9,7 @@ export default async function NewOrder() {
     productOptions(actor),
     db.customer.findMany({
       where: { organizationId: actor.organizationId, active: true },
-      select: { id: true, name: true },
+      select: { id: true, name: true, phone: true },
       orderBy: { name: 'asc' },
       take: 1000,
     }),

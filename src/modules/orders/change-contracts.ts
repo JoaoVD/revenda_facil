@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { id, amount, saleInput } from '@/modules/shared/contracts';
 export const editOrderInput = saleInput
-  .omit({ orderId: true, paid: true, method: true })
+  .omit({ orderId: true, paid: true, method: true, newCustomer: true })
   .extend({
     saleId: id,
     expectedVersion: z.number().int().positive(),

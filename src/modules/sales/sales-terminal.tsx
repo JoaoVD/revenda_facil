@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Search, Plus, Minus, ShoppingCart, Trash2 } from 'lucide-react';
 import { operationAction } from '@/app/actions';
 import { D, brl, money } from '@/lib/money';
+import { CustomerPicker } from '@/modules/customers/customer-picker';
 import { Card, Field, Select, Empty } from '@/components/ui';
 import type { ProductOption } from '@/modules/products/contracts';
 export function SalesTerminal({
@@ -23,6 +24,10 @@ export function SalesTerminal({
     [message, setMessage] = useState(''),
     [pending, start] = useTransition();
   const router = useRouter();
+  const [customerName, setCustomerName] = useState(''),
+    [customerPhone, setCustomerPhone] = useState(''),
+    [quickCustomerId, setQuickCustomerId] = useState(() => crypto.randomUUID()),
+    [forceNewCustomer, setForceNewCustomer] = useState(false);
   const selected = products.filter((p) => cart[p.id]);
   const subtotal = selected.reduce(
     (s, p) => s.plus(D(p.salePrice).mul(cart[p.id])),
@@ -114,10 +119,37 @@ export function SalesTerminal({
           onSubmit={(e) => {
             e.preventDefault();
             if (pending || !selected.length) return;
+            if (customerName.trim() && customerName.trim().length < 2) {
+              setMessage('Informe ao menos dois caracteres para o nome.');
+              return;
+            }
+            if (
+              !customer &&
+              !forceNewCustomer &&
+              customerName.trim() &&
+              customers.some((c) =>
+                c.name
+                  .toLocaleLowerCase('pt-BR')
+                  .includes(customerName.trim().toLocaleLowerCase('pt-BR')),
+              )
+            ) {
+              setMessage(
+                'Escolha o cliente encontrado ou confirme que é outra pessoa.',
+              );
+              return;
+            }
             start(async () => {
               const result = await operationAction('sale', {
                 idempotencyKey: key,
                 customerId: customer || undefined,
+                newCustomer:
+                  !customer && customerName.trim()
+                    ? {
+                        id: quickCustomerId,
+                        name: customerName.trim(),
+                        phone: customerPhone.trim(),
+                      }
+                    : undefined,
                 discount: money(validAmount(discount)),
                 paid: money(validAmount(paid)),
                 method,
@@ -129,6 +161,11 @@ export function SalesTerminal({
               setMessage(result.message);
               if (result.ok) {
                 setCart({});
+                setCustomer('');
+                setCustomerName('');
+                setCustomerPhone('');
+                setForceNewCustomer(false);
+                setQuickCustomerId(crypto.randomUUID());
                 setDiscount('0');
                 setPaid('0');
                 setKey(crypto.randomUUID());
@@ -190,18 +227,28 @@ export function SalesTerminal({
             <span>Total</span>
             <strong>{brl(total.toString())}</strong>
           </div>
-          <Select
-            label="Cliente"
-            value={customer}
-            onChange={(e) => setCustomer(e.target.value)}
-          >
-            <option value="">Venda sem cadastro de cliente</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+          <CustomerPicker
+            customers={customers}
+            name={customerName}
+            selectedId={customer}
+            phone={customerPhone}
+            forceNew={forceNewCustomer}
+            onName={(name) => {
+              setCustomerName(name);
+              setCustomer('');
+              setForceNewCustomer(false);
+            }}
+            onSelect={(id, name) => {
+              setCustomer(id);
+              setCustomerName(name);
+              setForceNewCustomer(false);
+            }}
+            onPhone={setCustomerPhone}
+            onForceNew={() => {
+              setCustomer('');
+              setForceNewCustomer(true);
+            }}
+          />
           <Select
             label="Forma de pagamento do recebimento"
             value={method}
@@ -229,8 +276,8 @@ export function SalesTerminal({
             Preencher valor total recebido
           </button>
           <p className="hint">
-            Para deixar saldo a receber, selecione um cliente. Venda no cartão
-            só entra no caixa quando o recebimento for registrado.
+            Para deixar saldo a receber, informe ou selecione um cliente. Venda
+            no cartão só entra no caixa quando o recebimento for registrado.
           </p>
           {message && (
             <p role="status" className="notice">

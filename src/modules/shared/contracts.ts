@@ -47,6 +47,13 @@ export const saleInput = z.object({
   expectedTotal: amount.optional(),
   idempotencyKey: key,
   customerId: id.optional(),
+  newCustomer: z
+    .object({
+      id,
+      name: z.string().trim().min(2).max(120),
+      phone: z.string().trim().max(20).default(''),
+    })
+    .optional(),
   discount: amount.default('0'),
   paid: amount.default('0'),
   method: z.enum(['PIX', 'CASH', 'CARD', 'CREDIT']),

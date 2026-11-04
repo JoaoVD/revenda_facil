@@ -121,6 +121,20 @@ export function OfflineWorkspace() {
       !snapshot?.sales.some((s) => s.id === c.payload.orderId),
   );
   const customers = [
+    ...projected
+      .filter(
+        (c) =>
+          c.type === 'ORDER' &&
+          c.payload.newCustomer &&
+          !snapshot?.customers.some(
+            (customer) =>
+              customer.id === (c.payload.newCustomer as { id: string }).id,
+          ),
+      )
+      .map((c) => {
+        const quick = c.payload.newCustomer as { id: string; name: string };
+        return { id: quick.id, name: quick.name, active: true };
+      }),
     ...(snapshot?.customers || []).filter((c) => c.active),
     ...projected
       .filter(
@@ -142,7 +156,11 @@ export function OfflineWorkspace() {
       .filter((c) => !snapshot?.sales.some((s) => s.id === c.payload.orderId))
       .map((c) => ({
         id: String(c.payload.orderId),
-        customerId: String(c.payload.customerId || ''),
+        customerId: String(
+          c.payload.customerId ||
+            (c.payload.newCustomer as { id?: string } | undefined)?.id ||
+            '',
+        ),
         total: String(c.payload.localTotal || '0'),
         status: 'CONFIRMED',
         fulfillmentMode: String(c.payload.fulfillmentMode),
@@ -387,8 +405,12 @@ export function OfflineWorkspace() {
                   const deps = unapplied
                     .filter(
                       (c) =>
-                        c.type === 'CUSTOMER' &&
-                        c.payload.customerId === payload.customerId,
+                        (c.type === 'CUSTOMER' &&
+                          c.payload.customerId === payload.customerId) ||
+                        (c.type === 'ORDER' &&
+                          Boolean(c.payload.newCustomer) &&
+                          (c.payload.newCustomer as { id: string }).id ===
+                            payload.customerId),
                     )
                     .map((c) => c.id);
                   await capture(
