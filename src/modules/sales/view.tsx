@@ -5,6 +5,7 @@ import { brl, dateTime, D } from '@/lib/money';
 import { Card, Table, Empty, Badge } from '@/components/ui';
 import { SalesTerminal, CancelForm } from '@/components/domain-forms';
 import { productOptions } from '@/modules/products/options';
+import { netReceived } from '@/modules/finance/ledger';
 const statusLabel: Record<string, string> = {
   PENDING: 'Pendente',
   ISSUED: 'Emitida · informada',
@@ -64,12 +65,7 @@ export async function SalesView({ actor, query }: ViewProps) {
                       ? '—'
                       : brl(
                           D(s.total.toString())
-                            .minus(
-                              s.payments.reduce(
-                                (v, p) => v.plus(p.amount.toString()),
-                                D(0),
-                              ),
-                            )
+                            .minus(netReceived(s.payments))
                             .toString(),
                         )}
                   </td>

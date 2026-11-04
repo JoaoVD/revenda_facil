@@ -13,3 +13,7 @@ Revenda Facil.exe
 *.zip
 artifacts/
 .cache/
+
+# Backups comerciais: nunca versionar dados reais.
+*.dump
+*.dump.partial

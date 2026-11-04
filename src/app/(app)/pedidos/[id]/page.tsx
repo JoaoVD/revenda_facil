@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { z } from 'zod';
 import { notFound } from 'next/navigation';
 import { Package, Wallet, Clock3, UserRound } from 'lucide-react';
 import { db } from '@/lib/db';
@@ -8,6 +9,8 @@ import { Card, Badge, PageTitle } from '@/components/ui';
 import { OperationForm } from '@/components/operation-form';
 import { CancelForm } from '@/modules/sales/cancel-form';
 import { OrderReceipt } from '@/modules/orders/order-receipt';
+import { RefundForm } from '@/modules/orders/refund-form';
+import { netReceived } from '@/modules/finance/ledger';
 import {
   orderInclude,
   pendingBalance,
@@ -36,8 +39,23 @@ export default async function OrderDetail({
     orderBy: { createdAt: 'asc' },
     take: 200,
   });
+  const changes = await db.orderChange.findMany({
+    where: { saleId: s.id, organizationId: actor.organizationId },
+    orderBy: { version: 'desc' },
+    take: 50,
+  });
+  const priorOrder = z.object({
+    total: z.string(),
+    items: z.array(
+      z.object({
+        productName: z.string(),
+        quantity: z.number(),
+        unitPrice: z.string(),
+      }),
+    ),
+  });
   const balance = pendingBalance(s),
-    received = D(s.total.toString()).minus(balance);
+    received = netReceived(s.payments);
   const active = s.status === 'CONFIRMED';
   const phone = s.customer?.phone?.replace(/\D/g, '') || '';
   return (
@@ -49,6 +67,11 @@ export default async function OrderDetail({
         title={`Pedido #${s.id.slice(0, 8)}`}
         description={`Criado em ${dateTime(s.createdAt)}`}
       />
+      {s.status === 'CONFIRMED' && s.fulfillmentStatus === 'PENDING' && (
+        <Link className="small-button" href={`/pedidos/${s.id}/editar`}>
+          Editar pedido pendente
+        </Link>
+      )}
       <Card>
         <div className="section-heading">
           <h2>
@@ -136,22 +159,30 @@ export default async function OrderDetail({
             Pagamento
           </h2>
           <Badge>
-            {balance.eq(0)
-              ? 'Pago'
-              : received.gt(0)
-                ? 'Recebido em parte'
-                : 'Em aberto'}
+            {!active
+              ? 'Cancelado'
+              : balance.eq(0)
+                ? 'Pago'
+                : received.gt(0)
+                  ? 'Recebido em parte'
+                  : 'Em aberto'}
           </Badge>
         </div>
         <div className="payment-amounts">
           <div>
-            Já recebido<strong>{brl(received)}</strong>
+            Líquido recebido<strong>{brl(received)}</strong>
           </div>
           <div>
             Falta receber<strong>{brl(balance)}</strong>
           </div>
         </div>
         {s.agreementNotes && <p>Combinado: {s.agreementNotes}</p>}
+        {!active && s.installments.length > 0 && (
+          <p className="hint">
+            Plano anterior ao cancelamento, mantido apenas para histórico. Não
+            há cobrança pendente deste pedido.
+          </p>
+        )}
         {s.installments.length ? (
           <ol className="installment-list">
             {s.installments.map((part) => (
@@ -165,7 +196,8 @@ export default async function OrderDetail({
                     : 'Sem vencimento'}
                 </span>
                 <small>
-                  Recebido: {brl(part.received.toString())} · Falta:{' '}
+                  Recebido no plano: {brl(part.received.toString())} ·{' '}
+                  {active ? 'Falta:' : 'Saldo histórico:'}{' '}
                   {brl(
                     D(part.amount.toString()).minus(part.received.toString()),
                   )}
@@ -180,9 +212,10 @@ export default async function OrderDetail({
         )}
         {s.payments.length > 0 && (
           <details>
-            <summary>Recebimentos registrados</summary>
+            <summary>Recebimentos e devoluções registrados</summary>
             {s.payments.map((p) => (
               <p key={p.id}>
+                {p.direction === 'OUT' ? 'Devolvido' : 'Recebido'} ·{' '}
                 {dateTime(p.occurredAt)} · {brl(p.amount.toString())} ·{' '}
                 {p.method === 'PIX'
                   ? 'Pix'
@@ -218,8 +251,55 @@ export default async function OrderDetail({
         <Card>
           <details>
             <summary>Outras ações</summary>
-            <CancelForm saleId={s.id} />
+            {received.gt(0) ? (
+              <RefundForm
+                saleId={s.id}
+                version={s.version}
+                received={received.toFixed(2)}
+                delivered={s.fulfillmentStatus === 'COMPLETED'}
+              />
+            ) : (
+              <CancelForm
+                saleId={s.id}
+                delivered={s.fulfillmentStatus === 'COMPLETED'}
+              />
+            )}
           </details>
+        </Card>
+      )}
+      {changes.length > 0 && (
+        <Card>
+          <h2>Versões preservadas do pedido</h2>
+          {changes.map((change) => {
+            const before = priorOrder.safeParse(change.before);
+            const reason = z
+              .object({ reason: z.string() })
+              .safeParse(change.payload);
+            return (
+              <details key={change.id}>
+                <summary>
+                  {change.type === 'EDIT'
+                    ? 'Edição'
+                    : 'Cancelamento com reembolso'}{' '}
+                  · versão {change.version} · {dateTime(change.createdAt)}
+                </summary>
+                {reason.success && <p>{reason.data.reason}</p>}
+                {before.success && (
+                  <>
+                    <p>Total anterior: {brl(before.data.total)}</p>
+                    <ul>
+                      {before.data.items.map((item, index) => (
+                        <li key={index}>
+                          {item.quantity} × {item.productName} ·{' '}
+                          {brl(item.unitPrice)} por unidade
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </details>
+            );
+          })}
         </Card>
       )}
     </div>

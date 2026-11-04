@@ -2,6 +2,7 @@ import { paymentInput, type Actor } from '@/modules/shared/contracts';
 import { atomic, hash, sameRequest } from '@/modules/shared/transaction';
 import { BusinessError } from '@/lib/errors';
 import { D } from '@/lib/money';
+import { netReceived } from './ledger';
 export async function recordPayment(actor: Actor, raw: unknown) {
   const input = paymentInput.parse(raw);
   if (D(input.amount).lte(0))
@@ -50,10 +51,10 @@ export async function recordPayment(actor: Actor, raw: unknown) {
               include: { payments: true },
             });
       if (!record) throw new BusinessError('Registro não encontrado.');
-      const paid = record.payments.reduce(
-        (s, p) => s.plus(p.amount.toString()),
-        D(0),
-      );
+      const paid =
+        input.kind === 'SALE'
+          ? netReceived(record.payments)
+          : record.payments.reduce((s, p) => s.plus(p.amount.toString()), D(0));
       if (paid.plus(input.amount).gt(record.total.toString()))
         throw new BusinessError('O valor ultrapassa o saldo pendente.');
     }
@@ -77,6 +78,7 @@ export async function recordPayment(actor: Actor, raw: unknown) {
         where: {
           organizationId: actor.organizationId,
           saleId: input.referenceId,
+          supersededAt: null,
         },
         orderBy: { position: 'asc' },
       });

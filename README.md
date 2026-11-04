@@ -62,7 +62,7 @@ Testes de componentes usam Chrome instalado (`UX_BROWSER_CHANNEL=chrome` por pad
 
 ## Limitações atuais
 
-Snapshots locais são limitados; sincronização incremental e resolução assistida de conflitos não estão concluídas. Também faltam rascunhos editáveis, edição do atendimento, devolução financeira, outros meios de pagamento e alocação entre compras. Lembretes internos e integração Web Push estão implementados; envio real depende de HTTPS, chaves VAPID, agendador e inscrição autorizada no aparelho. Instalação PWA, recebimento real de push e teclado virtual físico de Android/iOS precisam de homologação. Relatórios avançados continuam em desenvolvimento.
+Snapshots locais são limitados; sincronização incremental completa continua pendente. Conferência assistida de conflitos, rascunhos locais automáticos, edição online de pedidos pendentes e cancelamento com reembolso integral estão implementados. Não há edição offline, devolução parcial, trocas ou alocação entre compras. Lembretes internos e integração Web Push estão implementados; envio real depende de HTTPS, chaves VAPID, agendador e inscrição autorizada no aparelho. Instalação PWA, recebimento real de push e teclado virtual físico de Android/iOS precisam de homologação. Relatórios avançados continuam em desenvolvimento.
 
 ## Notificações no celular
 
@@ -71,3 +71,7 @@ Em Configurações → Lembretes, salve dia/horário e ative as notificações p
 Leia [configuração e homologação de Web Push](docs/NOTIFICACOES_WEB_PUSH.md). A chave privada e o segredo do agendador ficam apenas no backend. `npm run push:keys` gera o par VAPID; `npm run reminders:run` executa uma rodada do agendador usando `.env`. `npm run test:push:browser` testa o componente em Chromium com permissão/PushManager/HTTP simulados.
 
 Escopo da remoção de componentes não SaaS e verificações: [limpeza do projeto](docs/LIMPEZA_SAAS.md).
+
+## Confiabilidade operacional
+
+Leia [conferência, rascunhos e cancelamentos](docs/CONFERENCIA_RASCUNHOS_E_CANCELAMENTOS.md) e [operação na nuvem e recuperação](docs/OPERACAO_NUVEM_E_RECUPERACAO.md). Inclui migrations versionadas para decisões de sincronização, versões dos pedidos e histórico de planos de parcelas. `npm run backup:create -- arquivo.dump` e `npm run backup:restore-test -- arquivo.dump` preparam backup e ensaio local seguro; exigem clientes PostgreSQL e as variáveis dedicadas descritas no guia. Configuração e ensaio no servidor real continuam pendentes.

@@ -2,6 +2,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { db } from '@/lib/db';
 import {
   requireActor,
   requireUser,
@@ -21,6 +22,8 @@ import { customerInput, id } from '@/modules/shared/contracts';
 import { atomic } from '@/modules/shared/transaction';
 import { BusinessError, publicError } from '@/lib/errors';
 import { saveReminder, reviewNotice } from '@/modules/reminders/service';
+import { resolveConflict } from '@/modules/sync/resolution';
+import { editOrder, refundAndCancel } from '@/modules/orders/changes';
 import {
   prepareFiscal,
   sendFiscal,
@@ -165,6 +168,40 @@ export async function operationAction(
       case 'payment':
         await recordPayment(actor, raw);
         break;
+      case 'edit-order':
+        await editOrder(actor, raw);
+        break;
+      case 'refund-cancel':
+        await refundAndCancel(actor, raw);
+        break;
+      case 'draft-status': {
+        const input = z.object({ idempotencyKey: id }).parse(raw);
+        const sale = await db.sale.findUnique({
+          where: {
+            organizationId_idempotencyKey: {
+              organizationId: actor.organizationId,
+              idempotencyKey: input.idempotencyKey,
+            },
+          },
+          select: { id: true },
+        });
+        return {
+          ok: true,
+          message: sale ? 'Pedido localizado.' : 'Pedido ainda não confirmado.',
+          id: sale?.id,
+        };
+      }
+      case 'resolve-sync': {
+        const result = await resolveConflict(actor, raw);
+        revalidatePath('/', 'layout');
+        return {
+          ok: true,
+          message:
+            result.status === 'APPLIED'
+              ? 'Conferência aplicada com sucesso.'
+              : 'Decisão registrada. Confira a pendência atualizada antes de continuar.',
+        };
+      }
       case 'customer': {
         const input = customerInput.parse(raw);
         await atomic(async (tx) => {

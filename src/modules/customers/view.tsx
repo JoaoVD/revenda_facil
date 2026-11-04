@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { brl, D } from '@/lib/money';
 import { Card, Table, Empty } from '@/components/ui';
 import { CustomerForm } from '@/components/domain-forms';
+import { netReceived } from '@/modules/finance/ledger';
 export async function CustomersView({ actor, query }: ViewProps) {
   const organizationId = actor.organizationId;
   const skip = (query.page - 1) * 25;
@@ -65,12 +66,7 @@ export async function CustomersView({ actor, query }: ViewProps) {
                         (s, v) =>
                           s
                             .plus(v.total.toString())
-                            .minus(
-                              v.payments.reduce(
-                                (t, p) => t.plus(p.amount.toString()),
-                                D(0),
-                              ),
-                            ),
+                            .minus(netReceived(v.payments)),
                         D(0),
                       )
                       .toString(),

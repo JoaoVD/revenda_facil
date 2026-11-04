@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition, type ReactNode } from 'react';
+import { useRef, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { operationAction } from '@/app/actions';
 export function OperationForm({
@@ -20,34 +20,40 @@ export function OperationForm({
   const [state, setState] = useState({ ok: false, message: '' }),
     [pending, start] = useTransition(),
     router = useRouter();
+  const running = useRef(false);
   return (
     <form
       className="stack"
       onSubmit={(e) => {
         e.preventDefault();
-        if (pending) return;
+        if (pending || running.current) return;
+        running.current = true;
         const form = e.currentTarget,
           data = new FormData(form);
         start(async () => {
-          let payload: unknown;
+          let sending = false;
           try {
-            payload = transform ? transform(data) : Object.fromEntries(data);
+            const payload = transform
+              ? transform(data)
+              : Object.fromEntries(data);
+            sending = true;
+            const result = await operationAction(operation, payload);
+            setState(result);
+            if (result.ok) {
+              if (reset) form.reset();
+              onSuccess?.();
+              router.refresh();
+            }
           } catch (error) {
             setState({
               ok: false,
               message:
-                error instanceof Error
+                !sending && error instanceof Error
                   ? error.message
-                  : 'Não foi possível preparar a operação. Confira os dados e tente novamente.',
+                  : 'Não foi possível confirmar no servidor. O preenchimento foi mantido; confira a operação antes de tentar novamente.',
             });
-            return;
-          }
-          const result = await operationAction(operation, payload);
-          setState(result);
-          if (result.ok) {
-            if (reset) form.reset();
-            onSuccess?.();
-            router.refresh();
+          } finally {
+            running.current = false;
           }
         });
       }}

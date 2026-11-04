@@ -7,6 +7,7 @@ export type LocalCommand = Command & {
   nextAttemptAt: number;
   message?: string;
   resultId?: string;
+  resolvedPayload?: Command['payload'];
 };
 export type Snapshot = Scope & {
   owner: string;
@@ -31,30 +32,38 @@ export type Snapshot = Scope & {
     version: number;
     expectedDate?: string | null;
     items: { productName: string; quantity: number; unitPrice: string }[];
-    payments: { id?: string; amount: string }[];
+    payments: { id?: string; amount: string; direction?: string }[];
   }[];
   conflicts: { id: string; type: string; message: string | null }[];
+  commandResults?: {
+    id: string;
+    status: LocalCommand['state'];
+    message: string | null;
+    result: unknown;
+    resolvedPayload: unknown;
+  }[];
 };
 export const scopeKey = (scope: Scope) =>
   `${scope.userId}:${scope.organizationId}`;
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('revenda-offline-v1', 1);
+    const request = indexedDB.open('revenda-offline-v1', 2);
     request.onupgradeneeded = () => {
-      for (const name of ['meta', 'commands', 'records'])
-        request.result.createObjectStore(name);
+      for (const name of ['meta', 'commands', 'records', 'drafts'])
+        if (!request.result.objectStoreNames.contains(name))
+          request.result.createObjectStore(name);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
-function requestValue<T>(request: IDBRequest<T>): Promise<T> {
+export function requestValue<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
-async function transaction<T>(
+export async function transaction<T>(
   stores: string[],
   work: (tx: IDBTransaction) => Promise<T>,
 ): Promise<T> {
@@ -200,6 +209,43 @@ export async function updateCommand(command: LocalCommand) {
   await transaction(['commands'], async (tx) => {
     tx.objectStore('commands').put(command, command.id);
   });
+}
+/** Confirmações da conferência feita no computador chegam sem reenviar o fato original. */
+export async function reconcileCommands(
+  scope: Scope,
+  results: Snapshot['commandResults'],
+) {
+  if (!results) return;
+  const commands = await localCommands(scope);
+  for (const result of results) {
+    const command = commands.find((c) => c.id === result.id);
+    if (
+      !command ||
+      !['APPLIED', 'ATTENTION', 'PENDING', 'WAITING'].includes(result.status)
+    )
+      continue;
+    if (command.state === 'APPLIED' && result.status !== 'APPLIED') continue;
+    const resolved = result.resolvedPayload
+      ? commandInput.shape.payload.parse(result.resolvedPayload)
+      : undefined;
+    await updateCommand({
+      ...command,
+      state: result.status,
+      message: result.message || undefined,
+      resultId:
+        typeof result.result === 'object' &&
+        result.result !== null &&
+        'id' in result.result &&
+        typeof result.result.id === 'string'
+          ? result.result.id
+          : command.resultId,
+      resolvedPayload: resolved,
+      nextAttemptAt:
+        command.state === 'ATTENTION' && result.status !== 'ATTENTION'
+          ? 0
+          : command.nextAttemptAt,
+    });
+  }
 }
 export async function acquireLease(
   scope: Scope,

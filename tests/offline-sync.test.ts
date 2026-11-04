@@ -2,6 +2,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { synchronize } from '@/modules/sync/client';
 import {
+  reconcileCommands,
   acquireLease,
   enqueue,
   localCommands,
@@ -206,5 +207,37 @@ describe('recuperação da fila persistente', () => {
       ...input.payload,
       installments: [{ amount: '60' }],
     });
+  });
+  it('conferência no servidor atualiza o aparelho sem alterar a intenção e sem regredir confirmação', async () => {
+    const input = command();
+    await enqueue(input);
+    const [pending] = await localCommands(scope);
+    await updateCommand({ ...pending, state: 'ATTENTION' });
+    await reconcileCommands(scope, [
+      {
+        id: input.id,
+        status: 'APPLIED',
+        message: null,
+        result: { id: 'receipt-current' },
+        resolvedPayload: { ...input.payload, referenceId: 'reconciled-sale' },
+      },
+    ]);
+    let actual = (await localCommands(scope))[0];
+    expect(actual.payload).toEqual(input.payload);
+    expect(actual.state).toBe('APPLIED');
+    expect(actual.resultId).toBe('receipt-current');
+    expect(actual.resolvedPayload?.referenceId).toBe('reconciled-sale');
+    await reconcileCommands(scope, [
+      {
+        id: input.id,
+        status: 'WAITING',
+        message: 'Antigo',
+        result: null,
+        resolvedPayload: null,
+      },
+    ]);
+    actual = (await localCommands(scope))[0];
+    expect(actual.state).toBe('APPLIED');
+    expect(actual.resultId).toBe('receipt-current');
   });
 });

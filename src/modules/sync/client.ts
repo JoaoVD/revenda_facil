@@ -5,6 +5,7 @@ import {
   localCommands,
   saveSnapshot,
   updateCommand,
+  reconcileCommands,
   type Snapshot,
   type Scope,
 } from './local-store';
@@ -28,6 +29,7 @@ export async function synchronize(scope: Scope): Promise<string> {
     )
       return 'Conta diferente. Entre na conta original para sincronizar as ações preservadas.';
     await saveSnapshot(snapshot, false);
+    await reconcileCommands(scope, snapshot.commandResults);
     const commands = (await localCommands(scope)).sort((a, b) =>
       a.capturedAt.localeCompare(b.capturedAt),
     );
@@ -86,6 +88,8 @@ export async function synchronize(scope: Scope): Promise<string> {
           command.message = body.message || undefined;
           command.resultId =
             typeof body.result?.id === 'string' ? body.result.id : undefined;
+          if (body.resolvedPayload && typeof body.resolvedPayload === 'object')
+            command.resolvedPayload = body.resolvedPayload;
         }
         // WAITING/PENDING são respostas válidas, não falhas de transporte.
         command.attempts = 0;
@@ -113,8 +117,10 @@ export async function synchronize(scope: Scope): Promise<string> {
       if (
         fresh.userId === scope.userId &&
         fresh.organizationId === scope.organizationId
-      )
+      ) {
         await saveSnapshot(fresh, false);
+        await reconcileCommands(scope, fresh.commandResults);
+      }
     }
     const queue = await localCommands(scope),
       pending = queue.filter((c) =>

@@ -30,6 +30,13 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint -- --max-warnings=0
       - run: npm test
+      - name: Testar backup e restauração em banco descartável
+        run: |
+          bash scripts/backup/ci-clients.sh
+          export PATH="$RUNNER_TEMP/pgbin:$PATH"
+          export TMPDIR="$RUNNER_TEMP"
+          pg_dump --version
+          node scripts/backup/test-roundtrip.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:orders:browser
         env:

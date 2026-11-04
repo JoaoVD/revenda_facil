@@ -20,7 +20,12 @@ export default async function NewOrder() {
         title="Novo pedido"
         description="Escolha os produtos e combine o atendimento."
       />
-      <OrderWizard products={products} customers={customers} />
+      <OrderWizard
+        key={`${actor.userId}:${actor.organizationId}`}
+        scope={{ userId: actor.userId, organizationId: actor.organizationId }}
+        products={products}
+        customers={customers}
+      />
     </>
   );
 }

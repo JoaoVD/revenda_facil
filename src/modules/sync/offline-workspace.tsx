@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Leaf, Package } from 'lucide-react';
 import { Card, Field, Select, Empty } from '@/components/ui';
 import { brl, D } from '@/lib/money';
+import { netReceived } from '@/modules/finance/ledger';
 import { OrderWizard } from '@/modules/orders/order-wizard';
 import { synchronize } from './client';
 import {
@@ -93,28 +94,35 @@ export function OfflineWorkspace() {
       active.organizationId !== snapshot.organizationId
     )
       throw new Error('Conta alterada. Reabra o aplicativo.');
+    const original = (await localCommands(snapshot)).find(
+      (c) => c.id === commandId,
+    );
     await enqueue({
       id: commandId,
       type,
       contractVersion: 1,
       userId: snapshot.userId,
       organizationId: snapshot.organizationId,
-      capturedAt: new Date().toISOString(),
+      capturedAt: original?.capturedAt || new Date().toISOString(),
       dependencies,
       payload,
     } as Command);
     setStatus('Salvo neste aparelho — aguardando sincronização.');
     await refresh();
   }
-  const unapplied = commands.filter((c) => c.state !== 'APPLIED');
-  const pendingOrders = commands.filter(
+  const projected = commands.map((c) => ({
+    ...c,
+    payload: c.resolvedPayload || c.payload,
+  }));
+  const unapplied = projected.filter((c) => c.state !== 'APPLIED');
+  const pendingOrders = projected.filter(
     (c) =>
       c.type === 'ORDER' &&
       !snapshot?.sales.some((s) => s.id === c.payload.orderId),
   );
   const customers = [
     ...(snapshot?.customers || []).filter((c) => c.active),
-    ...commands
+    ...projected
       .filter(
         (c) =>
           c.type === 'CUSTOMER' &&
@@ -158,14 +166,14 @@ export function OfflineWorkspace() {
       })),
   ].map((s) => ({
     ...s,
-    fulfillmentStatus: commands.some(
+    fulfillmentStatus: projected.some(
       (c) => c.type === 'DELIVERY' && c.payload.saleId === s.id,
     )
       ? 'COMPLETED'
       : s.fulfillmentStatus,
     payments: [
       ...s.payments,
-      ...commands
+      ...projected
         .filter(
           (c) =>
             c.type === 'PAYMENT' &&
@@ -179,9 +187,9 @@ export function OfflineWorkspace() {
   const dependency = (id: string) =>
     pendingOrders.filter((c) => c.payload.orderId === id).map((c) => c.id);
   function orderBalance(order: (typeof sales)[number]) {
-    return D(order.total).minus(
-      order.payments.reduce((sum, p) => sum.plus(p.amount), D(0)),
-    );
+    return order.status === 'CANCELLED'
+      ? D(0)
+      : D(order.total).minus(netReceived(order.payments));
   }
   return (
     <div className="device-workspace">
@@ -281,9 +289,11 @@ export function OfflineWorkspace() {
                               : 'Entrega pendente'}
                       </p>
                       <p>
-                        {orderBalance(s).gt(0)
-                          ? `Falta receber ${brl(orderBalance(s))}`
-                          : 'Pago'}
+                        {s.status === 'CANCELLED'
+                          ? 'Cancelado'
+                          : orderBalance(s).gt(0)
+                            ? `Falta receber ${brl(orderBalance(s))}`
+                            : 'Pago'}
                       </p>
                       {unapplied.some(
                         (c) =>
@@ -319,6 +329,10 @@ export function OfflineWorkspace() {
                 Cadastrar cliente
               </button>
               <OrderWizard
+                scope={{
+                  userId: snapshot.userId,
+                  organizationId: snapshot.organizationId,
+                }}
                 provisional
                 customers={customers}
                 products={snapshot.products
@@ -346,25 +360,30 @@ export function OfflineWorkspace() {
                     referenceCost: '0',
                   }))}
                 commit={async (payload) => {
-                  const orderId = crypto.randomUUID(),
+                  const orderId = String(
+                      payload.orderId || crypto.randomUUID(),
+                    ),
                     commandId = String(payload.idempotencyKey);
                   const items = payload.items as {
                     productId: string;
                     quantity: number;
                   }[];
-                  const total = items
-                    .reduce(
-                      (sum, i) =>
-                        sum.plus(
-                          D(
-                            snapshot.products.find((p) => p.id === i.productId)
-                              ?.salePrice || '0',
-                          ).mul(i.quantity),
-                        ),
-                      D(0),
-                    )
-                    .minus(String(payload.discount || '0'))
-                    .toFixed(2);
+                  const total = payload.expectedTotal
+                    ? String(payload.expectedTotal)
+                    : items
+                        .reduce(
+                          (sum, i) =>
+                            sum.plus(
+                              D(
+                                snapshot.products.find(
+                                  (p) => p.id === i.productId,
+                                )?.salePrice || '0',
+                              ).mul(i.quantity),
+                            ),
+                          D(0),
+                        )
+                        .minus(String(payload.discount || '0'))
+                        .toFixed(2);
                   const deps = unapplied
                     .filter(
                       (c) =>
@@ -494,9 +513,7 @@ export function OfflineWorkspace() {
               </Card>
               <Card>
                 <h2>Pagamento</h2>
-                <p>
-                  Já recebido: {brl(D(sale.total).minus(orderBalance(sale)))}
-                </p>
+                <p>Líquido recebido: {brl(netReceived(sale.payments))}</p>
                 <p>Falta receber: {brl(orderBalance(sale))}</p>
                 {sale.status === 'CONFIRMED' && orderBalance(sale).gt(0) && (
                   <form
@@ -587,6 +604,9 @@ export function OfflineWorkspace() {
               </Card>
               <Card>
                 <h2>Ações e conferências</h2>
+                <a className="button" href="/pendencias">
+                  Conferir pendências com internet
+                </a>
                 {commands.map((c) => (
                   <div className="local-command" key={c.id}>
                     <strong>
@@ -621,10 +641,9 @@ export function OfflineWorkspace() {
                   </p>
                 ))}
                 <p className="hint">
-                  Conflitos preservam os fatos no servidor e no aparelho. A
-                  correção comercial assistida ainda exige revisão técnica;
-                  tentar novamente não altera um comando já rejeitado pelo
-                  servidor.
+                  Conflitos preservam os fatos no servidor e no aparelho. Abra a
+                  conferência online para registrar uma decisão; a confirmação
+                  volta a este aparelho na próxima sincronização.
                 </p>
               </Card>
             </>

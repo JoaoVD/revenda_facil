@@ -9,6 +9,8 @@ import {
 } from '@/modules/sales/service';
 import { recordPayment } from '@/modules/finance/service';
 import { syncCommand } from '@/modules/sync/service';
+import { editOrder, refundAndCancel } from '@/modules/orders/changes';
+import { resolveConflict, conflictReview } from '@/modules/sync/resolution';
 import {
   savePushSubscription,
   pushSubscriptionActive,
@@ -96,12 +98,14 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
       };
       await db.$transaction([
         db.auditLog.deleteMany({ where: orgs }),
+        db.syncResolution.deleteMany({ where: orgs }),
         db.syncCommand.deleteMany({ where: orgs }),
         db.pushJob.deleteMany({ where: { subscription: orgs } }),
         db.pushSubscription.deleteMany({ where: orgs }),
         db.reminderNotice.deleteMany({ where: orgs }),
         db.reminderPreference.deleteMany({ where: orgs }),
         db.payment.deleteMany({ where: orgs }),
+        db.orderChange.deleteMany({ where: orgs }),
         db.expense.deleteMany({ where: orgs }),
         db.fiscalDocument.deleteMany({ where: orgs }),
         db.inventoryMovement.deleteMany({ where: orgs }),
@@ -234,8 +238,16 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
     await purchase(p.id);
     const s = await sale(p.id);
     await Promise.all([
-      cancelSale(a, { saleId: s.id, reason: 'Desistência da compra' }),
-      cancelSale(a, { saleId: s.id, reason: 'Desistência da compra' }),
+      cancelSale(a, {
+        saleId: s.id,
+        reason: 'Desistência da compra',
+        itemsReturned: true,
+      }),
+      cancelSale(a, {
+        saleId: s.id,
+        reason: 'Desistência da compra',
+        itemsReturned: true,
+      }),
     ]);
     expect(
       (await db.product.findUniqueOrThrow({ where: { id: p.id } })).stock,
@@ -249,7 +261,11 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
     await purchase(p.id);
     const s = await sale(p.id, 2, '200');
     await expect(
-      cancelSale(a, { saleId: s.id, reason: 'Desistência da compra' }),
+      cancelSale(a, {
+        saleId: s.id,
+        reason: 'Desistência da compra',
+        itemsReturned: true,
+      }),
     ).rejects.toThrow('já recebida');
     expect(
       (await db.product.findUniqueOrThrow({ where: { id: p.id } })).stock,
@@ -529,6 +545,177 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
       update.mockRestore();
     }
   });
+  it('conferência de preço preserva captura, histórico e idempotência da decisão', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const input = {
+      ...a,
+      id: crypto.randomUUID(),
+      contractVersion: 1,
+      type: 'ORDER',
+      capturedAt: new Date().toISOString(),
+      dependencies: [],
+      payload: {
+        orderId: crypto.randomUUID(),
+        idempotencyKey: crypto.randomUUID(),
+        customerId,
+        expectedTotal: '90',
+        localTotal: '90',
+        fulfillmentMode: 'PICKUP',
+        paid: '0',
+        method: 'PIX',
+        items: [{ productId: p.id, quantity: 1 }],
+      },
+    };
+    const conflict = await syncCommand(a, input);
+    expect(conflict.status).toBe('ATTENTION');
+    const decision = {
+      idempotencyKey: crypto.randomUUID(),
+      commandId: input.id,
+      expectedRevision: 0,
+      action: 'ORDER_PRICES',
+      expectedTotal: '100',
+      reason: 'Cliente confirmou o preço atualizado',
+    };
+    await expect(resolveConflict(b, decision)).rejects.toThrow(
+      'não encontrada',
+    );
+    const applied = await resolveConflict(a, decision);
+    expect(applied.status).toBe('APPLIED');
+    expect(applied.requestHash).toBe(conflict.requestHash);
+    expect(applied.payload).toEqual(conflict.payload);
+    expect(
+      (applied.resolvedPayload as { expectedTotal: string }).expectedTotal,
+    ).toBe('100');
+    expect((await resolveConflict(a, decision)).result).toEqual(applied.result);
+    expect(
+      await db.syncResolution.count({ where: { commandId: input.id } }),
+    ).toBe(1);
+    expect(await db.sale.count({ where: { id: input.payload.orderId } })).toBe(
+      1,
+    );
+    await expect(
+      resolveConflict(a, { ...decision, expectedTotal: '110' }),
+    ).rejects.toThrow('outros dados');
+  });
+  it('conferência de estoque libera entrega e dinheiro dependentes sem apagar os fatos', async () => {
+    const p = await product();
+    await purchase(p.id, 1);
+    const order = {
+      ...a,
+      id: crypto.randomUUID(),
+      contractVersion: 1,
+      type: 'ORDER',
+      capturedAt: new Date().toISOString(),
+      dependencies: [],
+      payload: {
+        orderId: crypto.randomUUID(),
+        idempotencyKey: crypto.randomUUID(),
+        customerId,
+        fulfillmentMode: 'PICKUP',
+        paid: '0',
+        method: 'PIX',
+        items: [{ productId: p.id, quantity: 2 }],
+      },
+    };
+    expect((await syncCommand(a, order)).status).toBe('ATTENTION');
+    const receipt = {
+      ...order,
+      id: crypto.randomUUID(),
+      type: 'PAYMENT',
+      dependencies: [order.id],
+      payload: {
+        idempotencyKey: crypto.randomUUID(),
+        kind: 'SALE',
+        referenceId: order.payload.orderId,
+        amount: '60',
+        method: 'PIX',
+        description: 'Recebido offline TEST',
+      },
+    };
+    const delivery = {
+      ...order,
+      id: crypto.randomUUID(),
+      type: 'DELIVERY',
+      dependencies: [order.id],
+      payload: { saleId: order.payload.orderId, expectedVersion: 1 },
+    };
+    expect((await syncCommand(a, receipt)).status).toBe('WAITING');
+    expect((await syncCommand(a, delivery)).status).toBe('WAITING');
+    await expect(
+      resolveConflict(a, {
+        idempotencyKey: crypto.randomUUID(),
+        commandId: receipt.id,
+        expectedRevision: 0,
+        action: 'RETRY',
+        reason: 'Tentativa com dependência pendente',
+      }),
+    ).rejects.toThrow('primeiro');
+    await purchase(p.id, 1);
+    await resolveConflict(a, {
+      idempotencyKey: crypto.randomUUID(),
+      commandId: order.id,
+      expectedRevision: 0,
+      action: 'RETRY',
+      reason: 'Estoque reposto e conferido',
+    });
+    expect((await syncCommand(a, receipt)).status).toBe('APPLIED');
+    expect((await syncCommand(a, delivery)).status).toBe('APPLIED');
+    await syncCommand(a, receipt);
+    await syncCommand(a, delivery);
+    expect(
+      await db.payment.count({ where: { saleId: order.payload.orderId } }),
+    ).toBe(1);
+    expect(
+      (await db.product.findUniqueOrThrow({ where: { id: p.id } })).stock,
+    ).toBe(0);
+    expect(
+      await db.syncCommand.count({
+        where: { id: { in: [order.id, receipt.id, delivery.id] } },
+      }),
+    ).toBe(3);
+  });
+  it('recebimento em conflito só pode mudar para pedido do mesmo cliente, sem reduzir seu valor', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const paid = await sale(p.id, 1, '100'),
+      target = await sale(p.id, 1);
+    const input = {
+      ...a,
+      id: crypto.randomUUID(),
+      contractVersion: 1,
+      type: 'PAYMENT',
+      capturedAt: new Date().toISOString(),
+      dependencies: [],
+      payload: {
+        idempotencyKey: crypto.randomUUID(),
+        kind: 'SALE',
+        referenceId: paid.id,
+        amount: '60',
+        method: 'PIX',
+        description: 'Recebimento para conferir TEST',
+      },
+    };
+    expect((await syncCommand(a, input)).status).toBe('ATTENTION');
+    const decision = {
+      idempotencyKey: crypto.randomUUID(),
+      commandId: input.id,
+      expectedRevision: 0,
+      action: 'PAYMENT_TARGET',
+      targetSaleId: target.id,
+      reason: 'Recebimento pertence ao pedido correto',
+    };
+    const applied = await resolveConflict(a, decision);
+    expect(applied.status).toBe('APPLIED');
+    const payment = await db.payment.findUniqueOrThrow({
+      where: { id: (applied.result as { id: string }).id },
+    });
+    expect(payment.saleId).toBe(target.id);
+    expect(payment.amount.toString()).toBe('60');
+    expect((applied.payload as { referenceId: string }).referenceId).toBe(
+      paid.id,
+    );
+  });
   it('recebimentos concorrentes não excedem saldo e não alteram reserva', async () => {
     const p = await product();
     await purchase(p.id, 2);
@@ -741,5 +928,328 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
     expect(
       await dueNotice(b.organizationId, new Date('2027-03-01T12:00:00Z')),
     ).toBeNull();
+  });
+  async function reservedOrder(productId: string, paid = '0') {
+    return finalizeSale(a, {
+      idempotencyKey: crypto.randomUUID(),
+      customerId,
+      items: [{ productId, quantity: 2 }],
+      fulfillmentMode: 'PICKUP',
+      paid,
+      method: 'PIX',
+    });
+  }
+  it('edita reserva com preço histórico, versionamento, isolamento e idempotência', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const s = await reservedOrder(p.id);
+    await db.product.update({
+      where: { id: p.id },
+      data: { salePrice: '120' },
+    });
+    const input = {
+      idempotencyKey: crypto.randomUUID(),
+      saleId: s.id,
+      expectedVersion: 1,
+      expectedTotal: '300',
+      customerId,
+      items: [{ productId: p.id, quantity: 3 }],
+      fulfillmentMode: 'PICKUP',
+      reason: 'Cliente pediu mais uma unidade',
+      installments: [],
+    };
+    await expect(editOrder(b, input)).rejects.toThrow('não encontrado');
+    await Promise.all([editOrder(a, input), editOrder(a, input)]);
+    const edited = await db.sale.findUniqueOrThrow({
+      where: { id: s.id },
+      include: { items: true, changes: true },
+    });
+    expect(edited.version).toBe(2);
+    expect(edited.total.toString()).toBe('300');
+    expect(edited.items[0].unitPrice.toString()).toBe('100');
+    expect(edited.items[0].unitCost.toString()).toBe('40');
+    expect(edited.changes).toHaveLength(1);
+    expect((edited.changes[0].before as { total: string }).total).toBe('200');
+    expect(
+      (await db.product.findUniqueOrThrow({ where: { id: p.id } })).reserved,
+    ).toBe(3);
+    await expect(
+      editOrder(a, { ...input, idempotencyKey: crypto.randomUUID() }),
+    ).rejects.toThrow('mudou');
+    await expect(
+      editOrder(a, {
+        ...input,
+        idempotencyKey: crypto.randomUUID(),
+        expectedVersion: 2,
+        expectedTotal: '1100',
+        items: [{ productId: p.id, quantity: 11 }],
+      }),
+    ).rejects.toThrow('Estoque insuficiente');
+    expect(await db.orderChange.count({ where: { saleId: s.id } })).toBe(1);
+  });
+  it('replaneja apenas o saldo preservando parcelas anteriores e recebimentos', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const s = await reservedOrder(p.id, '50');
+    await db.installment.create({
+      data: {
+        organizationId: a.organizationId,
+        saleId: s.id,
+        position: 1,
+        amount: '150',
+        received: '0',
+      },
+    });
+    const input = {
+      idempotencyKey: crypto.randomUUID(),
+      saleId: s.id,
+      expectedVersion: 1,
+      expectedTotal: '200',
+      customerId,
+      items: [{ productId: p.id, quantity: 2 }],
+      fulfillmentMode: 'PICKUP',
+      reason: 'Alteração das datas combinadas',
+      installments: [{ amount: '150', dueDate: '2027-01-10' }],
+    };
+    await editOrder(a, input);
+    await recordPayment(a, {
+      idempotencyKey: crypto.randomUUID(),
+      kind: 'SALE',
+      referenceId: s.id,
+      amount: '70',
+      method: 'PIX',
+      description: 'Recebimento após acordo',
+    });
+    const plans = await db.installment.findMany({
+      where: { saleId: s.id },
+      orderBy: { planVersion: 'asc' },
+    });
+    expect(plans).toHaveLength(2);
+    expect(plans[0].supersededAt).not.toBeNull();
+    expect(plans[0].received.toString()).toBe('0');
+    expect(plans[1].received.toString()).toBe('70');
+    await expect(
+      editOrder(a, {
+        ...input,
+        idempotencyKey: crypto.randomUUID(),
+        expectedVersion: 2,
+        expectedTotal: '100',
+        items: [{ productId: p.id, quantity: 1 }],
+        installments: [],
+      }),
+    ).rejects.toThrow('menor');
+  });
+  it('reembolsa pedido reservado atomicamente sem duplicar saída de caixa', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const s = await reservedOrder(p.id, '80');
+    const before = await dashboard(a, currentMonth());
+    const input = {
+      idempotencyKey: crypto.randomUUID(),
+      saleId: s.id,
+      expectedVersion: 1,
+      amount: '80',
+      method: 'PIX',
+      confirmed: true,
+      reason: 'Cliente desistiu antes da retirada',
+    };
+    await expect(refundAndCancel(b, input)).rejects.toThrow('não encontrado');
+    await expect(
+      refundAndCancel(a, { ...input, amount: '79' }),
+    ).rejects.toThrow('integral');
+    await Promise.all([refundAndCancel(a, input), refundAndCancel(a, input)]);
+    const actual = await db.sale.findUniqueOrThrow({
+      where: { id: s.id },
+      include: { payments: true },
+    });
+    expect(actual.status).toBe('CANCELLED');
+    expect(actual.payments).toHaveLength(2);
+    const stock = await db.product.findUniqueOrThrow({ where: { id: p.id } });
+    expect(stock.stock).toBe(10);
+    expect(stock.reserved).toBe(0);
+    const after = await dashboard(a, currentMonth());
+    expect(Number(after.outgoing) - Number(before.outgoing)).toBe(80);
+    expect(after.incoming).toBe(before.incoming);
+    expect(after.profit).toBe(before.profit);
+    await expect(
+      recordPayment(a, {
+        idempotencyKey: crypto.randomUUID(),
+        kind: 'SALE',
+        referenceId: s.id,
+        amount: '1',
+        method: 'PIX',
+        description: 'Tentativa indevida',
+      }),
+    ).rejects.toThrow();
+  });
+  it('exige retorno físico e respeita bloqueio fiscal sem publicar reembolso parcial', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const s = await sale(p.id, 2, '200');
+    const input = {
+      idempotencyKey: crypto.randomUUID(),
+      saleId: s.id,
+      expectedVersion: 1,
+      amount: '200',
+      method: 'CASH',
+      confirmed: true,
+      reason: 'Cliente devolveu todos os produtos',
+    };
+    await expect(refundAndCancel(a, input)).rejects.toThrow('retorno físico');
+    expect(await db.payment.count({ where: { saleId: s.id } })).toBe(1);
+    await db.fiscalDocument.update({
+      where: { saleId: s.id },
+      data: { status: 'AUTHORIZED' },
+    });
+    await expect(
+      refundAndCancel(a, { ...input, itemsReturned: true }),
+    ).rejects.toThrow('documento fiscal');
+    expect(await db.orderChange.count({ where: { saleId: s.id } })).toBe(0);
+    await db.fiscalDocument.update({
+      where: { saleId: s.id },
+      data: { status: 'CANCELLED' },
+    });
+    await refundAndCancel(a, { ...input, itemsReturned: true });
+    expect(
+      (await db.product.findUniqueOrThrow({ where: { id: p.id } })).stock,
+    ).toBe(10);
+    expect(
+      await db.inventoryMovement.count({
+        where: { referenceId: s.id, type: 'RETURN' },
+      }),
+    ).toBe(1);
+  });
+
+  it('conferência de entrega exige versão atual e cliente existente nunca é sobrescrito', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const s = await reservedOrder(p.id);
+    await db.sale.update({ where: { id: s.id }, data: { version: 2 } });
+    const delivery = {
+      ...a,
+      id: crypto.randomUUID(),
+      contractVersion: 1,
+      type: 'DELIVERY',
+      capturedAt: new Date().toISOString(),
+      dependencies: [],
+      payload: { saleId: s.id, expectedVersion: 1 },
+    };
+    expect((await syncCommand(a, delivery)).status).toBe('ATTENTION');
+    const decision = {
+      idempotencyKey: crypto.randomUUID(),
+      commandId: delivery.id,
+      expectedRevision: 0,
+      action: 'DELIVERY_VERSION',
+      expectedVersion: 1,
+      reason: 'Entrega física conferida com cliente',
+    };
+    await expect(resolveConflict(a, decision)).rejects.toThrow('mudou');
+    expect(
+      (await resolveConflict(a, { ...decision, expectedVersion: 2 })).status,
+    ).toBe('APPLIED');
+    expect(
+      (await db.product.findUniqueOrThrow({ where: { id: p.id } })).stock,
+    ).toBe(8);
+    const customer = {
+      ...a,
+      id: crypto.randomUUID(),
+      contractVersion: 1,
+      type: 'CUSTOMER',
+      capturedAt: new Date().toISOString(),
+      dependencies: [],
+      payload: { customerId, name: 'Nome antigo do aparelho', phone: '' },
+    };
+    expect((await syncCommand(a, customer)).status).toBe('ATTENTION');
+    expect(
+      (
+        await resolveConflict(a, {
+          idempotencyKey: crypto.randomUUID(),
+          commandId: customer.id,
+          expectedRevision: 0,
+          action: 'CUSTOMER_CURRENT',
+          reason: 'Cadastro atual conferido e preservado',
+        })
+      ).status,
+    ).toBe('APPLIED');
+    expect(
+      (await db.customer.findUniqueOrThrow({ where: { id: customerId } })).name,
+    ).toBe('Cliente de teste');
+  });
+  it('registros dependentes ausentes aparecem bloqueados e fatos pendentes impedem edição/cancelamento', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const s = await reservedOrder(p.id);
+    const missing = crypto.randomUUID();
+    const command = {
+      ...a,
+      id: crypto.randomUUID(),
+      contractVersion: 1,
+      type: 'PAYMENT',
+      capturedAt: new Date().toISOString(),
+      dependencies: [missing],
+      payload: {
+        idempotencyKey: crypto.randomUUID(),
+        kind: 'SALE',
+        referenceId: s.id,
+        amount: '50',
+        method: 'PIX',
+        description: 'Dinheiro capturado TEST',
+      },
+    };
+    await syncCommand(a, command);
+    expect((await conflictReview(a, command.id)).blockedBy[0].status).toBe(
+      'MISSING',
+    );
+    await expect(conflictReview(b, command.id)).rejects.toThrow(
+      'não encontrada',
+    );
+    await expect(
+      cancelSale(a, { saleId: s.id, reason: 'Tentativa com fato pendente' }),
+    ).rejects.toThrow('pendências');
+    await expect(
+      editOrder(a, {
+        idempotencyKey: crypto.randomUUID(),
+        saleId: s.id,
+        expectedVersion: 1,
+        expectedTotal: '200',
+        customerId,
+        items: [{ productId: p.id, quantity: 2 }],
+        fulfillmentMode: 'PICKUP',
+        reason: 'Tentativa com fato pendente',
+        installments: [],
+      }),
+    ).rejects.toThrow('pendências');
+  });
+  it('edições concorrentes reservam apenas uma versão confirmada', async () => {
+    const p = await product();
+    await purchase(p.id);
+    const s = await reservedOrder(p.id);
+    const input = {
+      saleId: s.id,
+      expectedVersion: 1,
+      customerId,
+      fulfillmentMode: 'PICKUP',
+      reason: 'Cliente alterou quantidade',
+      installments: [],
+    };
+    const attempts = await Promise.allSettled(
+      [3, 4].map((quantity) =>
+        editOrder(a, {
+          ...input,
+          idempotencyKey: crypto.randomUUID(),
+          expectedTotal: String(quantity * 100),
+          items: [{ productId: p.id, quantity }],
+        }),
+      ),
+    );
+    expect(attempts.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const actual = await db.sale.findUniqueOrThrow({
+      where: { id: s.id },
+      include: { items: true },
+    });
+    const stock = await db.product.findUniqueOrThrow({ where: { id: p.id } });
+    expect(actual.version).toBe(2);
+    expect(stock.reserved).toBe(actual.items[0].quantity);
+    expect(stock.stock).toBe(10);
   });
 });

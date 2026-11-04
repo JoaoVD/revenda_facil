@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { D } from '@/lib/money';
+import { netReceived } from '@/modules/finance/ledger';
 import { BusinessError } from '@/lib/errors';
 import { atomic } from '@/modules/shared/transaction';
 import type { Actor } from '@/modules/shared/contracts';
@@ -38,15 +39,16 @@ export async function hasReceivables(
 ) {
   const sales = await db.sale.findMany({
     where: { organizationId, status: 'CONFIRMED' },
-    include: { payments: true, installments: true },
+    include: {
+      payments: true,
+      installments: { where: { supersededAt: null } },
+    },
   });
   const date = businessDate(now),
     today = `${date.period}-${String(date.day).padStart(2, '0')}`;
   return sales.some(
     (s) =>
-      D(s.total.toString()).gt(
-        s.payments.reduce((sum, p) => sum.plus(p.amount.toString()), D(0)),
-      ) &&
+      D(s.total.toString()).gt(netReceived(s.payments)) &&
       (scope === 'ALL' ||
         s.installments.some(
           (p) =>
