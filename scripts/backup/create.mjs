@@ -20,6 +20,14 @@ try {
       ['--format=custom', '--no-owner', '--no-privileges', '--file', partial],
       { env, stdio: 'pipe', timeout: 30 * 60 * 1000 },
     );
+    if (result.error?.code === 'ENOENT')
+      throw new Error(
+        'Instale o cliente pg_dump compatível com o servidor PostgreSQL.',
+      );
+    if (/server version mismatch/i.test(String(result.stderr)))
+      throw new Error(
+        'A versão do pg_dump é anterior à versão do servidor. Instale um cliente compatível.',
+      );
     if (result.error || result.status !== 0)
       throw new Error(
         'pg_dump falhou. Verifique conectividade, permissões e versão do cliente PostgreSQL.',
