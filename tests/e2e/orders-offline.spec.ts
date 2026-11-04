@@ -56,6 +56,23 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
     .click();
   await page.waitForURL(/\/pedidos\/[0-9a-f-]{36}$/);
   const saleId = page.url().split('/').at(-1)!;
+  await page
+    .getByRole('link', { name: 'Editar pedido pendente', exact: true })
+    .click();
+  await page
+    .getByLabel('Observações do atendimento')
+    .fill('TEST E2E: avisar antes da entrega');
+  await page
+    .getByLabel('Motivo da alteração')
+    .fill('Cliente confirmou observação do atendimento TEST');
+  await page.getByRole('checkbox', { name: /Conferi o atendimento/ }).check();
+  await page
+    .getByRole('button', { name: 'Salvar alterações do pedido', exact: true })
+    .click();
+  await page.waitForURL(`${base}/pedidos/${saleId}`);
+  await expect(
+    page.getByText('TEST E2E: avisar antes da entrega', { exact: true }),
+  ).toBeVisible();
   let snapshot = await (await page.request.get(`${base}/api/sync`)).json();
   let stored = snapshot.products.find(
     (p: { id: string }) => p.id === productId,
@@ -108,6 +125,39 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
     path: `artifacts/orders/dashboard-real-${viewport.width}.png`,
     fullPage: true,
   });
+  // Fixture descartável: registra devolução fictícia de dinheiro e retorno físico.
+  // E2E_ALLOW_WRITES deve permanecer restrito à organização de homologação.
+  await page.goto(`${base}/pedidos/${saleId}`);
+  await page.getByText('Outras ações', { exact: true }).click();
+  await page
+    .getByLabel('Motivo do cancelamento e reembolso')
+    .fill('TEST E2E: devolução integral da fixture');
+  await page.getByRole('checkbox', { name: /Todos os produtos/ }).check();
+  await page
+    .getByRole('checkbox', { name: /Confirmei a devolução integral/ })
+    .check();
+  await page
+    .getByRole('button', {
+      name: 'Registrar reembolso e cancelar pedido',
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.getByText('Cancelado', { exact: true }).first(),
+  ).toBeVisible();
+  snapshot = await (await page.request.get(`${base}/api/sync`)).json();
+  const cancelled = snapshot.sales.find((s: { id: string }) => s.id === saleId);
+  assert.equal(cancelled.status, 'CANCELLED');
+  assert.equal(
+    cancelled.payments.filter(
+      (p: { direction: string }) => p.direction === 'OUT',
+    ).length,
+    1,
+  );
+  assert.equal(
+    snapshot.products.find((p: { id: string }) => p.id === productId).stock,
+    initialStock,
+  );
   if (viewport.width === 390) {
     await page.goto(`${base}/operacao`);
     await expect(page.getByRole('status')).toContainText('Tudo sincronizado', {
@@ -193,7 +243,7 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
     snapshot = await (await page.request.get(`${base}/api/sync`)).json();
     assert.equal(
       snapshot.products.find((p: { id: string }) => p.id === productId).stock,
-      initialStock - 3,
+      initialStock - 1,
     );
     const cacheKeys = await page.evaluate(async () => {
       const keys = [];

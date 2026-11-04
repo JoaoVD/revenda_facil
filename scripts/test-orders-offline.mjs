@@ -424,10 +424,8 @@ try {
       await ui.evaluate(() => JSON.parse(JSON.stringify(window.lastPayload))),
       JSON.parse(JSON.stringify(outgoing)),
     );
-    assert.equal(
-      await ui.getByLabel('Cliente', { exact: true }).isDisabled(),
-      true,
-    );
+    assert.equal(await ui.getByLabel('Cliente', { exact: true }).count(), 0);
+    await ui.getByText(/Total do envio preservado:.*90/).waitFor();
     assert.equal(
       await ui.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
