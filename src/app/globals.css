@@ -2293,3 +2293,12 @@ h1 {
     min-height: 120px;
   }
 }
+@media (max-width: 760px) {
+  .button,
+  .small-button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+    text-align: center;
+  }
+}
