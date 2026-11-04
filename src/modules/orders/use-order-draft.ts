@@ -1,6 +1,11 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { activeScope, scopeKey, type Scope } from '@/modules/sync/local-store';
+import {
+  activeScope,
+  preparationState,
+  scopeKey,
+  type Scope,
+} from '@/modules/sync/local-store';
 import {
   readOrderDraft,
   saveOrderDraft,
@@ -51,18 +56,23 @@ export function useOrderDraft(
     epoch.current++;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
-    let tries = 0;
     async function load() {
       try {
+        if (cancelled) return;
         const active = await activeScope();
+        if (cancelled) return;
         if (!active || scopeKey(active) !== partition) {
-          if (++tries < 10) {
-            timer = setTimeout(() => void load(), 500);
-            return;
-          }
-          throw new Error(
-            'Libere a cópia local desta conta para preparar o rascunho.',
+          const preparation = await preparationState();
+          if (cancelled) return;
+          setMessage(
+            preparation.locked
+              ? 'Cópia local bloqueada. Use “Liberar cópia local nesta sessão” acima para continuar.'
+              : 'Preparando os dados neste aparelho… Os produtos serão liberados automaticamente.',
           );
+          // A primeira sincronização pode levar mais de cinco segundos. Continuar
+          // observando sem ativar outra conta nem desfazer um bloqueio explícito.
+          timer = setTimeout(() => void load(), 750);
+          return;
         }
         const saved = await readOrderDraft(scope!);
         if (cancelled) return;

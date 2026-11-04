@@ -472,8 +472,80 @@ try {
     );
     await ui.close();
   }
+
+  // Preparação lenta e bloqueio explícito: recuperar sem recarregar a página.
+  const delayed = await context.newPage();
+  await delayed.setViewportSize({ width: 390, height: 844 });
+  await bootstrap(delayed);
+  await delayed.evaluate(async (s) => {
+    await window.store.lockLocalAccount();
+    window.renderWizard(s);
+  }, scope);
+  const plus = delayed.getByRole('button', {
+    name: 'Adicionar Perfume de teste',
+    exact: true,
+  });
+  await plus.waitFor();
+  assert.equal(await plus.isDisabled(), true);
+  // Ultrapassa a janela antiga de 5s, mantendo a conta bloqueada.
+  await delayed.waitForTimeout(6000);
+  assert.equal(await plus.isDisabled(), true);
+  await delayed.evaluate(async (s) => {
+    const state = await window.store.preparationState();
+    await window.store.prepareSnapshot(
+      { ...s, userId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' },
+      state.generation,
+      true,
+    );
+  }, snapshot);
+  await delayed.waitForTimeout(1000);
+  assert.equal(await plus.isDisabled(), true);
+  await delayed.evaluate(async (s) => {
+    const state = await window.store.preparationState();
+    await window.store.prepareSnapshot(s, state.generation, true);
+  }, snapshot);
+  await plus.waitFor({ state: 'visible' });
+  await delayed.waitForFunction(
+    () => !document.querySelector('fieldset').disabled,
+  );
+  // Eventos no mesmo turno de renderização não podem perder incrementos.
+  await plus.evaluate((button) => {
+    for (let i = 0; i < 5; i++) button.click();
+  });
+  await delayed.waitForFunction(
+    async (s) =>
+      (await window.drafts.readOrderDraft(s))?.fields.cart[
+        '11111111-1111-4111-8111-111111111111'
+      ] === 5,
+    scope,
+  );
+  await plus.evaluate((button) => {
+    for (let i = 0; i < 20; i++) button.click();
+  });
+  await delayed.waitForFunction(
+    async (s) =>
+      (await window.drafts.readOrderDraft(s))?.fields.cart[
+        '11111111-1111-4111-8111-111111111111'
+      ] === 10,
+    scope,
+  );
+  const minus = delayed.getByRole('button', {
+    name: 'Remover Perfume de teste',
+    exact: true,
+  });
+  await minus.evaluate((button) => {
+    for (let i = 0; i < 20; i++) button.click();
+  });
+  await delayed.waitForFunction(
+    async (s) =>
+      (await window.drafts.readOrderDraft(s))?.fields.cart[
+        '11111111-1111-4111-8111-111111111111'
+      ] === 0,
+    scope,
+  );
+  await delayed.close();
   console.log(
-    'PASS: IndexedDB reload/reopen, account isolation, atomic enqueue, two-tab lease, expired session preservation, ordered ORDER/PAYMENT sync; desktop/mobile wizard, draft reload and exact retry after lost response, deletion only after acknowledgement, back/error state preservation, no horizontal overflow. HTTP boundaries simulated.',
+    'PASS: IndexedDB reload/reopen, account isolation, atomic enqueue, two-tab lease, expired session preservation, ordered ORDER/PAYMENT sync; desktop/mobile wizard, draft reload and exact retry after lost response, deletion only after acknowledgement, back/error state preservation, no horizontal overflow. Delayed preparation >5s recovers without reload, lock/account isolation preserved, rapid increments/decrements bounded by stock. HTTP boundaries simulated.',
   );
 } finally {
   await context.close();
