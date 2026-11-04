@@ -2,7 +2,7 @@
 
 ## Mudanças
 
-- Formulários em uma coluna até 760px, inclusive parcelas; fonte de campos de 16px e altura mínima de 48px. Ações com área de toque de pelo menos 44px. Margens e espaços entre campos ampliados, valores financeiros empilhados em telas estreitas e rodapé respeitando a área segura.
+- Formulários em uma coluna até 760px, inclusive parcelas; fonte de campos de 16px e altura mínima de 44px. Ações com área de toque de pelo menos 44px. Margens e espaços entre campos ampliados, valores financeiros empilhados em telas estreitas e rodapé respeitando a área segura.
 - Opções de sincronização ficam em uma seção expansível; o estado e os erros continuam visíveis. Telas comerciais continuam disponíveis.
 - Loading dentro do layout autenticado mantém a navegação acessível durante a espera. Lembretes carregam em Suspense, sem bloquear o conteúdo principal.
 - Autenticação e Membership deduplicadas com React.cache somente durante a mesma renderização RSC. Não há cache persistente compartilhado entre contas; a identidade continua validada no servidor.
@@ -22,3 +22,7 @@ Para medir a lentidão real, verificar separadamente navegação, Server Action,
 Na Vercel, conferir se Functions e Supabase estão na mesma região ou em regiões próximas; o host usado anteriormente pelo banco era us-east-1, mas a configuração atual deve ser confirmada. Não mudar para São Paulo somente pela localização da usuária se o banco continua nos EUA. Comparar primeira chamada após ociosidade com chamadas seguintes para identificar cold start. Conferir conexões e limites no Supabase. Desenvolvimento Next.js com npm run dev não representa o desempenho do build de produção.
 
 Não houve alteração de região, plano, secrets ou emissão fiscal. Não houve acesso ao banco comercial nem medições de milissegundos em produção. A página inicial ainda renderiza as duas visões responsivas (Dashboard e Meu dia); otimizar a seleção dessa visão sem perder adaptação a redimensionamento é uma melhoria posterior, distinta desta entrega.
+
+## Ajuste de densidade após avaliação
+
+A versão compacta reduz o corpo para 14px, títulos para 24px, intervalos para 12–14px, barras superior/inferior para 64/68px e padding dos cartões para 14×12px em larguras até 760px. Campos continuam com texto de 16px para facilitar leitura ao focar e controles têm altura mínima de 44px. Não utiliza zoom, transform/scale, alterações de viewport nem bloqueio do zoom do usuário. Desktop permanece com as mesmas dimensões.

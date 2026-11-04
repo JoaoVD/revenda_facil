@@ -89,7 +89,7 @@ try {
             font: parseFloat(getComputedStyle(input).fontSize),
           }));
         assert(
-          dimensions.height >= 48,
+          dimensions.height >= 44,
           'Campo com altura confortável para toque',
         );
         assert(dimensions.font >= 16, 'Texto legível sem zoom ao focar');
