@@ -1252,4 +1252,55 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
     expect(stock.reserved).toBe(actual.items[0].quantity);
     expect(stock.stock).toBe(10);
   });
+  it('lotes de itens preservam baixas, custos e auditoria sem publicação parcial', async () => {
+    const p = await product(),
+      q = await product();
+    await purchase(p.id);
+    await purchase(q.id);
+    const key = crypto.randomUUID();
+    const input = {
+      idempotencyKey: key,
+      method: 'PIX',
+      customerId,
+      fulfillmentMode: 'PICKUP',
+      items: [
+        { productId: p.id, quantity: 2 },
+        { productId: q.id, quantity: 3 },
+      ],
+    };
+    const order = await finalizeSale(a, input);
+    await finalizeSale(a, input);
+    expect(await db.saleItem.count({ where: { saleId: order.id } })).toBe(2);
+    expect(order.costTotal.toString()).toBe('200');
+    await completeOrder(a, { saleId: order.id, expectedVersion: 1 });
+    expect(
+      await db.inventoryMovement.count({
+        where: { referenceId: order.id, type: 'SALE' },
+      }),
+    ).toBe(2);
+    expect(
+      await db.auditLog.count({
+        where: { referenceId: order.id, type: 'SALE' },
+      }),
+    ).toBe(2);
+    expect(
+      (await db.product.findUniqueOrThrow({ where: { id: p.id } })).stock,
+    ).toBe(8);
+    expect(
+      (await db.product.findUniqueOrThrow({ where: { id: q.id } })).stock,
+    ).toBe(7);
+    await expect(
+      finalizeSale(a, {
+        ...input,
+        idempotencyKey: crypto.randomUUID(),
+        items: [
+          { productId: p.id, quantity: 1 },
+          { productId: q.id, quantity: 100 },
+        ],
+      }),
+    ).rejects.toThrow('Estoque insuficiente');
+    expect(
+      (await db.product.findUniqueOrThrow({ where: { id: p.id } })).reserved,
+    ).toBe(0);
+  });
 });

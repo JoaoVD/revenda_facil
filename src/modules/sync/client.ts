@@ -33,6 +33,7 @@ export async function synchronize(scope: Scope): Promise<string> {
     const commands = (await localCommands(scope)).sort((a, b) =>
       a.capturedAt.localeCompare(b.capturedAt),
     );
+    let sent = false;
     for (const command of commands) {
       // Recuperar somente a pausa de transporte criada pela versão anterior.
       // Rejeições comerciais continuam exigindo conferência.
@@ -62,6 +63,7 @@ export async function synchronize(scope: Scope): Promise<string> {
       if (!(await acquireLease(scope, holder)))
         return 'Outra aba está sincronizando.';
       try {
+        sent = true;
         const result = await fetch('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -108,18 +110,21 @@ export async function synchronize(scope: Scope): Promise<string> {
         // Continuar permite enviar os fatos dependentes ao registro auditável.
       }
     }
-    const final = await fetch('/api/sync', {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(10000),
-    });
-    if (final.ok) {
-      const fresh: Snapshot = await final.json();
-      if (
-        fresh.userId === scope.userId &&
-        fresh.organizationId === scope.organizationId
-      ) {
-        await saveSnapshot(fresh, false);
-        await reconcileCommands(scope, fresh.commandResults);
+    // Sem POST não há novo estado a reler: o snapshot inicial já está atualizado.
+    if (sent) {
+      const final = await fetch('/api/sync', {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (final.ok) {
+        const fresh: Snapshot = await final.json();
+        if (
+          fresh.userId === scope.userId &&
+          fresh.organizationId === scope.organizationId
+        ) {
+          await saveSnapshot(fresh, false);
+          await reconcileCommands(scope, fresh.commandResults);
+        }
       }
     }
     const queue = await localCommands(scope),

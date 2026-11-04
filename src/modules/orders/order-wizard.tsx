@@ -141,7 +141,6 @@ export function OrderWizard({
           if (onConfirmed) onConfirmed(result.id);
           else {
             router.push(`/pedidos/${result.id}`);
-            router.refresh();
           }
         } else setMessage(result.message);
       } catch {
