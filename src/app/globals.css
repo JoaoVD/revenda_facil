@@ -248,8 +248,16 @@ label {
   background: var(--white);
   border-bottom: 1px solid var(--line);
 }
-.topbar .sync-status {
+.topbar .sync-indicator {
   margin-left: auto;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .profile {
   display: flex;
@@ -377,11 +385,11 @@ label {
 }
 
 /* Indicador de sincronização (topo) */
-details.sync-status {
+.sync-indicator {
   position: relative;
   font-size: 13px;
 }
-details.sync-status > summary {
+.sync-indicator summary {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -394,10 +402,10 @@ details.sync-status > summary {
   font-weight: 500;
   list-style: none;
 }
-details.sync-status > summary::-webkit-details-marker {
+.sync-indicator summary::-webkit-details-marker {
   display: none;
 }
-details.sync-status > summary:hover {
+.sync-indicator summary:hover {
   background: var(--cream);
 }
 .sync-dot {
@@ -407,13 +415,13 @@ details.sync-status > summary:hover {
   background: #a7ae9f;
   flex-shrink: 0;
 }
-.sync-status[data-tone='ok'] .sync-dot {
+.sync-indicator[data-tone='ok'] .sync-dot {
   background: #3d8b5c;
 }
-.sync-status[data-tone='attention'] .sync-dot {
+.sync-indicator[data-tone='attention'] .sync-dot {
   background: var(--coral);
 }
-.sync-status[data-tone='attention'] > summary {
+.sync-indicator[data-tone='attention'] summary {
   color: var(--coral-dark);
   border-color: #e8cbbd;
   background: var(--coral-soft);
@@ -423,7 +431,7 @@ details.sync-status > summary:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-details.sync-status .sync-tools {
+.sync-indicator .sync-tools {
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
@@ -437,7 +445,7 @@ details.sync-status .sync-tools {
   border-radius: var(--radius);
   box-shadow: 0 10px 30px #1b2e2620;
 }
-details.sync-status .sync-tools a {
+.sync-indicator .sync-tools a {
   display: flex;
   align-items: center;
   min-height: 44px;
@@ -446,11 +454,11 @@ details.sync-status .sync-tools a {
   color: var(--green);
   font-weight: 600;
 }
-details.sync-status .sync-tools a:hover {
+.sync-indicator .sync-tools a:hover {
   background: var(--sage);
 }
 /* Variante em bloco (tela offline do aparelho) */
-div.sync-status {
+.sync-status {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -460,7 +468,7 @@ div.sync-status {
   font-size: 13px;
   color: var(--muted);
 }
-div.sync-status a {
+.sync-status a {
   text-decoration: underline;
 }
 
@@ -1359,10 +1367,6 @@ td small {
 .order-editor > * {
   min-width: 0;
 }
-.order-summary {
-  position: sticky;
-  top: calc(var(--topbar) + 16px);
-}
 .step-label {
   margin: 0 0 14px;
   color: var(--muted);
@@ -1873,16 +1877,16 @@ td small {
   .profile {
     display: none;
   }
-  details.sync-status > summary {
+  .sync-indicator summary {
     max-width: 46vw;
     min-height: 34px;
     padding: 5px 10px;
     font-size: 12px;
   }
-  .sync-status[data-tone='ok'] .sync-label {
+  .sync-indicator[data-tone='ok'] .sync-label {
     max-width: 0;
   }
-  .sync-status[data-tone='ok'] > summary {
+  .sync-indicator[data-tone='ok'] summary {
     gap: 0;
     min-width: 34px;
     justify-content: center;
@@ -2217,7 +2221,6 @@ td small {
     display: none !important;
   }
   .order-summary {
-    position: static;
     margin-top: 12px;
     padding: 14px;
   }

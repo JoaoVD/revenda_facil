@@ -127,35 +127,35 @@ export function SyncStatus({ userId, organizationId }: Scope) {
         ? 'idle'
         : 'attention';
   return (
-    <details
-      className="sync-status"
-      data-tone={tone}
-      key={locked ? 'locked' : 'free'}
-      open={locked || undefined}
-    >
-      <summary>
-        <span className="sync-dot" aria-hidden="true" />
-        <span className="sync-label" role="status">
-          {status}
-        </span>
-      </summary>
-      <div className="sync-tools">
-        {locked && (
-          <button
-            type="button"
-            className="small-button"
-            onClick={() => void prepareExplicitly()}
-          >
-            Liberar cópia local nesta sessão
-          </button>
-        )}
-        <Link prefetch={false} href="/operacao">
-          Dados deste aparelho e sincronização →
-        </Link>
-        <Link prefetch={false} href="/pendencias">
-          Conferir pendências →
-        </Link>
-      </div>
-    </details>
+    <div className="sync-indicator" data-tone={tone}>
+      <span className="sr-only" role="status">
+        {status}
+      </span>
+      <details key={locked ? 'locked' : 'free'} open={locked || undefined}>
+        <summary aria-label={`Sincronização: ${status}`}>
+          <span className="sync-dot" aria-hidden="true" />
+          <span className="sync-label" aria-hidden="true">
+            {status}
+          </span>
+        </summary>
+        <div className="sync-tools">
+          {locked && (
+            <button
+              type="button"
+              className="small-button"
+              onClick={() => void prepareExplicitly()}
+            >
+              Liberar cópia local nesta sessão
+            </button>
+          )}
+          <Link prefetch={false} href="/operacao">
+            Dados deste aparelho e sincronização →
+          </Link>
+          <Link prefetch={false} href="/pendencias">
+            Conferir pendências →
+          </Link>
+        </div>
+      </details>
+    </div>
   );
 }

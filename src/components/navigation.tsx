@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   CalendarCheck,
   ShoppingCart,
@@ -68,9 +68,11 @@ export function Navigation({
   organizationId: string;
 }) {
   const path = usePathname(),
-    [open, setOpen] = useState(false);
+    [open, setOpen] = useState(false),
+    closeButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
+    closeButton.current?.focus();
     const close = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
@@ -123,6 +125,7 @@ export function Navigation({
           <button
             type="button"
             className="icon-btn sheet-close"
+            ref={closeButton}
             onClick={() => setOpen(false)}
             aria-label="Fechar menu"
           >
