@@ -22,7 +22,8 @@
     "test:orders:browser": "node scripts/test-orders-offline.mjs && node scripts/test-order-controls.mjs",
     "test:orders:e2e": "playwright test tests/e2e/orders-offline.spec.ts",
     "backup:create": "node scripts/backup/create.mjs",
-    "backup:restore-test": "node scripts/backup/restore-test.mjs"
+    "backup:restore-test": "node scripts/backup/restore-test.mjs",
+    "demo:seed": "node scripts/seed-demo.mjs"
   },
   "license": "ISC",
   "type": "module",

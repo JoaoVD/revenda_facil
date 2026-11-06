@@ -29,6 +29,8 @@ Supabase: habilite e-mail/senha e confirmação de e-mail; configure Site URL e 
 
 ## Operação
 
+Para preparar uma conta separada com produtos, compras, pedidos, parcelas e histórico fictícios persistidos, siga o [guia de demonstração](docs/DEMONSTRACAO.md). O comando `npm run demo:seed` exige autenticação Supabase e recusa contas que já pertencem a uma revenda real.
+
 - `/`: Dashboard no computador e Meu dia no celular. `/dashboard`: resumo em ambos.
 - `/pedidos`, `/pedidos/novo`, `/pedidos/[id]`: catálogo, atendimento, pagamento e histórico.
 - `/receber`: saldos em aberto, vencidos e sem data.
