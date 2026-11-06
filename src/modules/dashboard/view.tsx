@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { D, brl, dateTime } from '@/lib/money';
+import { brl, dateTime } from '@/lib/money';
+import { MonthMetrics, type MonthMetricsData } from './month-metrics';
 import { Card, Empty, Table, Badge, PageTitle } from '@/components/ui';
 const types: Record<string, string> = {
   SALE: 'Venda',
@@ -19,13 +20,7 @@ const types: Record<string, string> = {
   SETTINGS: 'Configurações',
 };
 type Value = { toString(): string };
-export interface DashboardData {
-  incoming: string;
-  outgoing: string;
-  stock: number;
-  physicalStock?: number;
-  reservedStock?: number;
-  profit: string;
+export interface DashboardData extends MonthMetricsData {
   recentSales: {
     id: string;
     productName: string;
@@ -57,35 +52,6 @@ export function DashboardView({
   month: string;
   type?: string;
 }) {
-  const cards = [
-    {
-      title: 'Entradas',
-      tone: 'incoming',
-      value: brl(data.incoming),
-      note: 'Recebimentos no período',
-    },
-    {
-      title: 'Saídas',
-      tone: 'outgoing',
-      value: brl(data.outgoing),
-      note: 'Pagamentos no período',
-    },
-    {
-      title: 'Estoque atual',
-      tone: 'stock',
-      value: `${data.stock} itens`,
-      note:
-        data.physicalStock === undefined
-          ? 'Saldo disponível agora'
-          : `${data.physicalStock} físicos · ${data.reservedStock} reservados`,
-    },
-    {
-      title: 'Lucro presumido',
-      tone: 'profit',
-      value: brl(data.profit),
-      note: 'Estimativa gerencial do período',
-    },
-  ];
   return (
     <>
       <PageTitle title="Resumo">
@@ -102,20 +68,7 @@ export function DashboardView({
           <button className="small-button">Ver</button>
         </form>
       </PageTitle>
-      <div className="metrics">
-        {cards.map(({ title, value, note, tone }) => (
-          <Card
-            className={`metric metric--${tone}${tone === 'profit' && D(data.profit).lt(0) ? ' metric--negative' : ''}`}
-            key={title}
-          >
-            <div className="metric-heading">
-              <span>{title}</span>
-            </div>
-            <strong className="metric-value">{value}</strong>
-            <small>{note}</small>
-          </Card>
-        ))}
-      </div>
+      <MonthMetrics data={data} />
       <div className="dashboard-lists">
         <Card>
           <div className="section-heading">
@@ -226,7 +179,7 @@ export function DashboardView({
           </Empty>
         )}
         <p className="table-note">
-          Lucro presumido é uma estimativa, sem valor contábil ou fiscal.
+          Lucro líquido gerencial, sem valor contábil ou fiscal.
         </p>
       </Card>
     </>

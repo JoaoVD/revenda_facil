@@ -2,7 +2,7 @@ import MyDay from './meu-dia/page';
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; page?: string }>;
+  searchParams: Promise<{ filter?: string; page?: string; month?: string }>;
 }) {
   return <MyDay searchParams={searchParams} />;
 }

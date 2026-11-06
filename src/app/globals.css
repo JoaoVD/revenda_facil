@@ -922,6 +922,9 @@ label {
 .desktop-only {
   display: inline-flex;
 }
+.desktop-block {
+  display: block;
+}
 .mobile-only {
   display: none;
 }
@@ -1077,6 +1080,73 @@ td small {
 }
 .day-head p strong {
   color: var(--ink);
+}
+
+/* Hoje no computador: atendimentos à esquerda, painéis à direita */
+.day-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+.day-main .order-card-list {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+.day-side {
+  display: grid;
+  gap: 12px;
+}
+.side-panel {
+  margin: 0;
+  padding: 16px;
+}
+.side-panel h2 {
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+.side-panel p {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.side-value {
+  display: block;
+  color: var(--coral-dark);
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.late {
+  color: var(--coral-dark);
+  font-weight: 650;
+}
+.side-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.side-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #ece8de;
+  font-size: 14px;
+}
+.side-list li > span {
+  display: grid;
+  min-width: 0;
+}
+.side-list li > span strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-list li > strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.side-panel .card-link {
+  margin-top: 4px;
 }
 
 /* Lista de pedidos */
@@ -1286,7 +1356,7 @@ td small {
 }
 .metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -1295,6 +1365,9 @@ td small {
   margin: 0;
   padding: 16px;
   border-top: 3px solid var(--metric-color);
+}
+.metric--revenue {
+  --metric-color: var(--green);
 }
 .metric--incoming {
   --metric-color: #235a44;
@@ -1816,11 +1889,14 @@ td small {
   :root {
     --gutter: 22px;
   }
+  .day-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .day-side {
+    grid-template-columns: 1fr 1fr;
+  }
   .profile > div {
     display: none;
-  }
-  .metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .dashboard-lists,
   .split-layout,
@@ -2055,8 +2131,12 @@ td small {
     white-space: normal;
     text-align: center;
   }
-  .desktop-only {
+  .desktop-only,
+  .desktop-block {
     display: none !important;
+  }
+  .day-grid {
+    display: block;
   }
   .mobile-only {
     display: inline-flex;
@@ -2212,8 +2292,12 @@ td small {
     width: 100%;
   }
   .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 12px;
+  }
+  .metrics > .metric:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
   .metric {
     padding: 12px;

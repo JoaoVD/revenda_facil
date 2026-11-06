@@ -6,6 +6,7 @@ import { PageTitle, Empty } from '@/components/ui';
 import {
   orderInclude,
   pendingBalance,
+  isLate,
   fulfillmentLabel,
 } from '@/modules/orders/queries';
 import { OrderReceipt } from '@/modules/orders/order-receipt';
@@ -38,12 +39,7 @@ export default async function Receivables({
     (s) =>
       pendingBalance(s).gt(0) &&
       (query.filter === 'late'
-        ? s.installments.some(
-            (p) =>
-              p.dueDate &&
-              p.dueDate < today &&
-              D(p.received.toString()).lt(p.amount.toString()),
-          )
+        ? isLate(s, today)
         : query.filter === 'undated'
           ? !s.installments.length ||
             s.installments.some(
