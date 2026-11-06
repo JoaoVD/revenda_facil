@@ -1232,6 +1232,11 @@ td small {
   flex: 1;
   min-width: 0;
 }
+.customer-main a {
+  text-decoration: underline;
+  text-decoration-color: #c3cbbf;
+  text-underline-offset: 3px;
+}
 .customer-main strong {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1990,6 +1995,10 @@ td small {
     color: #fff;
     font-weight: 700;
   }
+  .bottom-nav > a > svg,
+  .bottom-nav > button > svg {
+    height: 32px;
+  }
   .bottom-nav [aria-current='page'] svg {
     color: var(--cream);
   }
@@ -2007,6 +2016,9 @@ td small {
     height: 32px;
     border-radius: 12px;
     background: var(--cream);
+    color: var(--green);
+  }
+  .bottom-nav .bottom-new svg {
     color: var(--green);
   }
   .bottom-new[aria-current='page'] > span {
@@ -2270,15 +2282,19 @@ td small {
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
   }
+  .order-editor {
+    padding-bottom: 76px;
+  }
   .order-actions {
-    position: sticky;
+    position: fixed;
+    right: 0;
     bottom: var(--bottom-nav);
-    z-index: 5;
-    margin: 0 -14px -14px;
-    padding: 10px 14px;
+    left: 0;
+    z-index: 35;
+    padding: 10px var(--gutter);
     background: var(--white);
     border-top: 1px solid var(--line);
-    border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: 0 -6px 20px #1b2e2612;
   }
 
   /* Detalhe do pedido */

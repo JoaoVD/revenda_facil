@@ -76,9 +76,6 @@ export default async function MyDay({
             )}
           </p>
         </div>
-        <Link className="button desktop-only" href="/pedidos/novo">
-          + Novo pedido
-        </Link>
       </div>
       <nav className="day-filters" aria-label="Filtrar pedidos">
         {tabs.map(([key, label, href]) => (
