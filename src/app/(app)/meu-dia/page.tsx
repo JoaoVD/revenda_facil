@@ -13,6 +13,7 @@ import {
 } from '@/modules/orders/queries';
 import { dashboard } from '@/modules/dashboard/queries';
 import { MonthMetrics } from '@/modules/dashboard/month-metrics';
+import { isPhoneRequest } from '@/lib/device';
 
 const tabs = [
   ['today', 'Hoje', ''],
@@ -44,6 +45,9 @@ export default async function MyDay({
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+  // No celular os números do mês e o painel lateral ficam ocultos:
+  // não vale a pena buscá-los.
+  const wide = !(await isPhoneRequest());
   const [sales, metrics, confirmed] = await Promise.all([
     filter === 'all'
       ? orders(actor, page)
@@ -59,14 +63,16 @@ export default async function MyDay({
           orderBy: { createdAt: 'desc' },
           take: 100,
         }),
-    dashboard(actor, month),
+    wide ? dashboard(actor, month) : null,
     // Mesma base da tela Receber: até 500 pedidos confirmados.
-    db.sale.findMany({
-      where: { organizationId: actor.organizationId, status: 'CONFIRMED' },
-      include: { payments: true, installments: orderInclude.installments },
-      orderBy: { createdAt: 'asc' },
-      take: 500,
-    }),
+    wide
+      ? db.sale.findMany({
+          where: { organizationId: actor.organizationId, status: 'CONFIRMED' },
+          include: { payments: true, installments: orderInclude.installments },
+          orderBy: { createdAt: 'asc' },
+          take: 500,
+        })
+      : [],
   ]);
   const open = sales.filter(
     (s) => s.status === 'CONFIRMED' && s.fulfillmentStatus === 'PENDING',
@@ -111,25 +117,29 @@ export default async function MyDay({
             )}
           </p>
         </div>
-        <form className="period-bar desktop-only">
-          {filter !== 'today' && (
-            <input type="hidden" name="filter" value={filter} />
-          )}
-          <label>
-            Mês{' '}
-            <input
-              aria-label="Mês dos números"
-              type="month"
-              name="month"
-              defaultValue={month}
-            />
-          </label>
-          <button className="small-button">Ver</button>
-        </form>
+        {metrics && (
+          <form className="period-bar desktop-only">
+            {filter !== 'today' && (
+              <input type="hidden" name="filter" value={filter} />
+            )}
+            <label>
+              Mês{' '}
+              <input
+                aria-label="Mês dos números"
+                type="month"
+                name="month"
+                defaultValue={month}
+              />
+            </label>
+            <button className="small-button">Ver</button>
+          </form>
+        )}
       </div>
-      <div className="desktop-block">
-        <MonthMetrics data={metrics} />
-      </div>
+      {metrics && (
+        <div className="desktop-block">
+          <MonthMetrics data={metrics} />
+        </div>
+      )}
       <div className="day-grid">
         <section className="day-main" aria-label="Atendimentos">
           <nav className="day-filters" aria-label="Filtrar pedidos">
@@ -173,50 +183,52 @@ export default async function MyDay({
             </nav>
           )}
         </section>
-        <aside className="day-side desktop-block" aria-label="Resumo do dia">
-          <Card className="side-panel">
-            <h2>A receber</h2>
-            <strong className="side-value">{brl(owingTotal)}</strong>
-            <p>
-              {owing.length} {owing.length === 1 ? 'pedido' : 'pedidos'} em
-              aberto
-              {late > 0 && (
-                <>
-                  {' · '}
-                  <span className="late">
-                    {late} {late === 1 ? 'atrasado' : 'atrasados'}
-                  </span>
-                </>
-              )}
-            </p>
-            <Link className="card-link" href="/receber">
-              Ver valores a receber <ArrowRight size={16} />
-            </Link>
-          </Card>
-          <Card className="side-panel">
-            <h2>Últimas vendas</h2>
-            {metrics.recentSales.length ? (
-              <ul className="side-list">
-                {metrics.recentSales.map((item) => (
-                  <li key={item.id}>
-                    <span>
-                      <strong>{item.productName}</strong>
-                      <small>
-                        {item.quantity} un. · {dateTime(item.sale.createdAt)}
-                      </small>
+        {metrics && (
+          <aside className="day-side desktop-block" aria-label="Resumo do dia">
+            <Card className="side-panel">
+              <h2>A receber</h2>
+              <strong className="side-value">{brl(owingTotal)}</strong>
+              <p>
+                {owing.length} {owing.length === 1 ? 'pedido' : 'pedidos'} em
+                aberto
+                {late > 0 && (
+                  <>
+                    {' · '}
+                    <span className="late">
+                      {late} {late === 1 ? 'atrasado' : 'atrasados'}
                     </span>
-                    <strong>{brl(item.total.toString())}</strong>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <Empty>Nenhuma venda concluída neste mês.</Empty>
-            )}
-            <Link className="card-link" href={`/dashboard?month=${month}`}>
-              Ver resumo do mês <ArrowRight size={16} />
-            </Link>
-          </Card>
-        </aside>
+                  </>
+                )}
+              </p>
+              <Link className="card-link" href="/receber">
+                Ver valores a receber <ArrowRight size={16} />
+              </Link>
+            </Card>
+            <Card className="side-panel">
+              <h2>Últimas vendas</h2>
+              {metrics.recentSales.length ? (
+                <ul className="side-list">
+                  {metrics.recentSales.map((item) => (
+                    <li key={item.id}>
+                      <span>
+                        <strong>{item.productName}</strong>
+                        <small>
+                          {item.quantity} un. · {dateTime(item.sale.createdAt)}
+                        </small>
+                      </span>
+                      <strong>{brl(item.total.toString())}</strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty>Nenhuma venda concluída neste mês.</Empty>
+              )}
+              <Link className="card-link" href={`/dashboard?month=${month}`}>
+                Ver resumo do mês <ArrowRight size={16} />
+              </Link>
+            </Card>
+          </aside>
+        )}
       </div>
     </>
   );
