@@ -52,10 +52,6 @@ export async function ProductsView({ actor, query }: ViewProps) {
             Seu catálogo está vazio. Use Novo produto para cadastrar o primeiro.
           </Empty>
         )}
-        <p className="table-note">
-          Exibindo até 200 produtos. Edição e inativação serão adicionadas na
-          próxima etapa.
-        </p>
       </Card>
     </div>
   );

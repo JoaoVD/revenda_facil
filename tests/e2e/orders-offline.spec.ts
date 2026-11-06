@@ -121,7 +121,7 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
     fullPage: true,
   });
   await page.goto(`${base}/dashboard`);
-  await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible();
   await expect(page.getByText('Estoque atual', { exact: true })).toBeVisible();
   assert.equal(
     await page.evaluate(
@@ -176,10 +176,10 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
       await navigator.serviceWorker.ready;
     });
     await page.reload();
-    await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible();
     await context.setOffline(true);
     await page.reload();
-    await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible();
     await page
       .getByRole('button', { name: '+ Novo pedido', exact: true })
       .click();
@@ -224,7 +224,7 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
       page.getByText('Atendimento concluído', { exact: true }),
     ).toBeVisible();
     await page.reload();
-    await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible();
     await context.setOffline(false);
     await page.getByRole('button', { name: 'Sincronizar agora' }).click();
     await expect(page.getByRole('status')).toContainText('Tudo sincronizado', {

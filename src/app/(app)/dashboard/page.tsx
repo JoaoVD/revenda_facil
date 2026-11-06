@@ -28,12 +28,5 @@ export default async function Dashboard({
   const type =
     params.type && allowed.includes(params.type) ? params.type : undefined;
   const data = await dashboard(actor, month, type);
-  return (
-    <DashboardView
-      data={data}
-      month={month}
-      type={type}
-      owner={actor.organization.ownerName}
-    />
-  );
+  return <DashboardView data={data} month={month} type={type} />;
 }

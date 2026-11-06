@@ -154,6 +154,7 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
     expect(after.outgoing).toBe(before.outgoing);
     expect(await db.payment.count({ where: { purchaseId: buy.id } })).toBe(0);
     expect(Number(after.profit) - Number(before.profit)).toBe(120);
+    expect(Number(after.revenue) - Number(before.revenue)).toBe(200);
   });
   it('mantém custo histórico após novas compras e calcula média ponderada', async () => {
     const p = await product();
@@ -339,6 +340,7 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
     expect(reserved.reserved).toBe(2);
     const after = await dashboard(a, currentMonth());
     expect(after.profit).toBe(before.profit);
+    expect(after.revenue).toBe(before.revenue);
     expect(Number(after.incoming) - Number(before.incoming)).toBe(50);
     const input = { saleId: s.id, expectedVersion: 1 };
     await Promise.all([completeOrder(a, input), completeOrder(a, input)]);

@@ -16,20 +16,25 @@ export default async function Orders({
       : 1;
   return (
     <>
-      <PageTitle
-        title="Pedidos e vendas"
-        description="Atendimento e recebimento, cada um no seu tempo."
-      >
-        <Link className="button" href="/pedidos/novo">
+      <PageTitle title="Pedidos">
+        <Link className="button desktop-only" href="/pedidos/novo">
           + Novo pedido
         </Link>
       </PageTitle>
       <OrderCards sales={await orders(actor, page)} />
-      <div className="pagination">
-        <Link href={`/pedidos?page=${Math.max(1, page - 1)}`}>Anterior</Link>
-        <span>Página {page} · 25 registros</span>
-        <Link href={`/pedidos?page=${page + 1}`}>Próxima</Link>
-      </div>
+      <nav className="pagination" aria-label="Páginas">
+        <Link
+          aria-disabled={page <= 1}
+          aria-label="Página anterior"
+          href={`/pedidos?page=${Math.max(1, page - 1)}`}
+        >
+          ‹
+        </Link>
+        <span>Página {page}</span>
+        <Link aria-label="Próxima página" href={`/pedidos?page=${page + 1}`}>
+          ›
+        </Link>
+      </nav>
     </>
   );
 }

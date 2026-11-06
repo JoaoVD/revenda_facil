@@ -1,4 +1,6 @@
+import { Children, cloneElement, isValidElement } from 'react';
 import type {
+  ReactElement,
   ReactNode,
   InputHTMLAttributes,
   SelectHTMLAttributes,
@@ -46,6 +48,23 @@ export function Empty({ children }: { children: ReactNode }) {
 export function Badge({ children }: { children: ReactNode }) {
   return <span className="badge">{children}</span>;
 }
+type CellProps = { children?: ReactNode; 'data-label'?: string };
+/** Repete o cabeçalho em cada célula (data-label) para o celular mostrar linhas legíveis. */
+function labelRow(row: ReactNode, headers: string[]): ReactNode {
+  if (!isValidElement<CellProps>(row) || row.type !== 'tr') return row;
+  let index = 0;
+  return cloneElement(
+    row,
+    undefined,
+    Children.map(row.props.children, (cell) => {
+      if (!isValidElement<CellProps>(cell) || cell.type !== 'td') return cell;
+      const label = headers[index++];
+      return label
+        ? cloneElement(cell as ReactElement<CellProps>, { 'data-label': label })
+        : cell;
+    }),
+  );
+}
 export function Table({
   headers,
   children,
@@ -63,7 +82,7 @@ export function Table({
             ))}
           </tr>
         </thead>
-        <tbody>{children}</tbody>
+        <tbody>{Children.map(children, (row) => labelRow(row, headers))}</tbody>
       </table>
     </div>
   );
@@ -74,15 +93,14 @@ export function PageTitle({
   children,
 }: {
   title: string;
-  description: string;
+  description?: string;
   children?: ReactNode;
 }) {
   return (
     <div className="page-title">
       <div>
-        <p className="eyebrow">SEU NEGÓCIO, MAIS SIMPLES</p>
         <h1>{title}</h1>
-        <p>{description}</p>
+        {description && <p>{description}</p>}
       </div>
       {children}
     </div>

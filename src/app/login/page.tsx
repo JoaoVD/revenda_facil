@@ -1,4 +1,4 @@
-import { Leaf, Check } from 'lucide-react';
+import { Leaf } from 'lucide-react';
 import { authConfigured } from '@/modules/auth/server';
 import { LoginForm } from '@/components/auth-forms';
 export const dynamic = 'force-dynamic';
@@ -7,41 +7,20 @@ export default async function Login() {
     <main className="auth-layout">
       <section className="auth-story">
         <div className="brand">
-          <Leaf />
-          <strong>Revenda Fácil</strong>
+          <span className="brand-mark" aria-hidden="true">
+            <Leaf size={18} strokeWidth={1.8} />
+          </span>
+          Revenda Fácil
         </div>
         <div>
-          <p className="eyebrow">CUIDE DO QUE É SEU</p>
-          <h1>
-            Sua revenda.
-            <br />
-            Tudo em ordem.
-          </h1>
-          <p>
-            Menos contas espalhadas.
-            <br />
-            Mais tempo para fazer seu negócio florescer.
-          </p>
-          <ul>
-            {[
-              'Estoque sempre à mão',
-              'Vendas e recebimentos organizados',
-              'Uma visão simples do seu dinheiro',
-            ].map((x) => (
-              <li key={x}>
-                <Check size={18} />
-                {x}
-              </li>
-            ))}
-          </ul>
+          <h1>Pedidos, estoque e recebimentos da sua revenda.</h1>
+          <p>Funciona no celular, mesmo sem internet.</p>
         </div>
-        <small>Feito para o dia a dia de quem revende.</small>
       </section>
       <section className="auth-panel">
         <div className="auth-form">
-          <span className="badge">BEM-VINDA À SUA REVENDA</span>
           <h2>Vamos começar?</h2>
-          <p>Entre para cuidar do seu negócio.</p>
+          <p>Entre na sua conta.</p>
           <LoginForm configured={authConfigured()} />
         </div>
       </section>

@@ -19,6 +19,23 @@ export const pendingBalance = (sale: {
   sale.status === 'CANCELLED'
     ? D(0)
     : D(sale.total.toString()).minus(netReceived(sale.payments));
+/** Parcela vencida (antes de hoje, AAAA-MM-DD) e ainda não quitada. */
+export const isLate = (
+  sale: {
+    installments: {
+      dueDate: string | null;
+      amount: { toString(): string };
+      received: { toString(): string };
+    }[];
+  },
+  today: string,
+) =>
+  sale.installments.some(
+    (p) =>
+      p.dueDate &&
+      p.dueDate < today &&
+      D(p.received.toString()).lt(p.amount.toString()),
+  );
 export async function orders(actor: Actor, page = 1) {
   return db.sale.findMany({
     where: { organizationId: actor.organizationId },

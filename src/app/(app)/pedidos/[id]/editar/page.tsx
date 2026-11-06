@@ -49,10 +49,7 @@ export default async function EditOrder({
       <Link className="text-link" href={`/pedidos/${sale.id}`}>
         ← Voltar ao pedido
       </Link>
-      <PageTitle
-        title="Editar pedido pendente"
-        description="Revise produtos, atendimento e combinado sem perder o histórico."
-      />
+      <PageTitle title="Editar pedido pendente" />
       <Card>
         {editable ? (
           <EditOrderForm

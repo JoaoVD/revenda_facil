@@ -55,9 +55,9 @@ export function ResolutionForm({ review }: { review: ConflictReview }) {
               {review.items.map((item, i) => (
                 <tr key={i}>
                   <td>{item.name}</td>
-                  <td>{item.quantity}</td>
-                  <td>{item.available}</td>
-                  <td>{brl(item.price)}</td>
+                  <td data-label="Quantidade">{item.quantity}</td>
+                  <td data-label="Disponível agora">{item.available}</td>
+                  <td data-label="Preço atual">{brl(item.price)}</td>
                 </tr>
               ))}
             </tbody>

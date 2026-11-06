@@ -16,10 +16,7 @@ export default async function NewOrder() {
   ]);
   return (
     <>
-      <PageTitle
-        title="Novo pedido"
-        description="Escolha os produtos e combine o atendimento."
-      />
+      <PageTitle title="Novo pedido" />
       <OrderWizard
         key={`${actor.userId}:${actor.organizationId}`}
         scope={{ userId: actor.userId, organizationId: actor.organizationId }}

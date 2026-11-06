@@ -42,10 +42,7 @@ export default async function Conflicts({
   const review = exists ? await conflictReview(actor, exists.id) : null;
   return (
     <>
-      <PageTitle
-        title="Pendências de sincronização"
-        description="Confira registros capturados no aparelho sem apagar seu histórico."
-      />
+      <PageTitle title="Pendências de sincronização" />
       <div className="split-layout">
         <Card>
           <h2>Registros para conferir</h2>

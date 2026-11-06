@@ -2,7 +2,8 @@ import { ActionDialog } from '@/components/action-dialog';
 import type { ViewProps } from '@/modules/shared/view-types';
 import { db } from '@/lib/db';
 import { brl, D } from '@/lib/money';
-import { Card, Table, Empty } from '@/components/ui';
+import { MessageCircle } from 'lucide-react';
+import { Empty } from '@/components/ui';
 import { CustomerForm } from '@/components/domain-forms';
 import { netReceived } from '@/modules/finance/ledger';
 export async function CustomersView({ actor, query }: ViewProps) {
@@ -31,54 +32,74 @@ export async function CustomersView({ actor, query }: ViewProps) {
   });
   return (
     <div>
-      <Card>
-        <div className="section-heading">
-          <h2>Seus clientes</h2>
-          <ActionDialog title="Novo cliente" trigger="Novo cliente">
-            <CustomerForm />
-          </ActionDialog>
-        </div>
-        <form className="inline-form search-form">
+      <div className="list-toolbar">
+        <form className="search-row" role="search">
           <input
             aria-label="Pesquisar clientes"
+            type="search"
             name="q"
             defaultValue={query.q}
-            placeholder="Pesquisar nome, contato ou documento"
+            placeholder="Buscar cliente"
           />
           <button className="small-button">Buscar</button>
         </form>
-        {customers.length ? (
-          <Table headers={['Nome', 'Contato', 'Compras', 'A receber']}>
-            {customers.map((c) => (
-              <tr key={c.id}>
-                <td>
+        <ActionDialog title="Novo cliente" trigger="+ Cliente">
+          <CustomerForm />
+        </ActionDialog>
+      </div>
+      {customers.length ? (
+        <ul className="card customer-list">
+          {customers.map((c) => {
+            const open = c.sales.reduce(
+                (s, v) =>
+                  s.plus(v.total.toString()).minus(netReceived(v.payments)),
+                D(0),
+              ),
+              digits = (c.phone || '').replace(/\D/g, ''),
+              whatsapp = digits.length <= 11 ? `55${digits}` : digits;
+            return (
+              <li key={c.id}>
+                <div className="customer-main">
                   <strong>{c.name}</strong>
-                </td>
-                <td>
-                  {c.phone || '—'}
-                  <small>{c.email}</small>
-                </td>
-                <td>{c.sales.length}</td>
-                <td>
-                  {brl(
-                    c.sales
-                      .reduce(
-                        (s, v) =>
-                          s
-                            .plus(v.total.toString())
-                            .minus(netReceived(v.payments)),
-                        D(0),
-                      )
-                      .toString(),
-                  )}
-                </td>
-              </tr>
-            ))}
-          </Table>
-        ) : (
-          <Empty>Cadastre clientes para acompanhar vendas a prazo.</Empty>
-        )}
-      </Card>
+                  <small>
+                    {digits.length >= 10 ? (
+                      <a href={`tel:${digits}`}>{c.phone}</a>
+                    ) : (
+                      c.phone
+                    )}
+                    {c.phone && ' · '}
+                    {c.sales.length}{' '}
+                    {c.sales.length === 1 ? 'compra' : 'compras'}
+                  </small>
+                </div>
+                {open.gt(0) && (
+                  <strong className="customer-balance">
+                    {brl(open.toString())}
+                  </strong>
+                )}
+                {digits.length >= 10 && (
+                  <div className="customer-contact">
+                    <a
+                      href={`https://wa.me/${whatsapp}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`WhatsApp de ${c.name}`}
+                    >
+                      <MessageCircle size={18} />
+                    </a>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <Empty>
+          {query.q
+            ? 'Nenhum cliente encontrado.'
+            : 'Nenhum cliente cadastrado ainda.'}
+        </Empty>
+      )}
     </div>
   );
 }

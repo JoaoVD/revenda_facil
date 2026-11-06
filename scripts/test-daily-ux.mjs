@@ -1,4 +1,4 @@
-﻿import { build } from 'esbuild';
+import { build } from 'esbuild';
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -57,21 +57,33 @@ try {
       ),
     });
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
-    if (viewport.width === 390)
+    if (viewport.width === 390) {
       await page.getByRole('button', { name: 'Mais', exact: true }).click();
-    const group = page.locator('.ux-nav-group');
-    assert.equal(await group.getAttribute('open'), null);
-    assert.equal(
-      await page
-        .locator('.sidebar')
-        .getByRole('link', { name: 'Clientes', exact: true })
-        .getAttribute('aria-current'),
-      'page',
-    );
-    await group.locator('summary').click();
-    assert.equal(await group.getAttribute('open'), '');
-    await group.locator('summary').click();
-    if (viewport.width === 390) await page.locator('.mobile-menu').click();
+      await page.getByRole('dialog', { name: 'Menu' }).waitFor();
+      assert.equal(
+        await page
+          .locator('.bottom-nav')
+          .getByRole('link', { name: 'Clientes', exact: true })
+          .getAttribute('aria-current'),
+        'page',
+      );
+      assert.equal(
+        await page
+          .locator('.sidebar')
+          .getByRole('link', { name: 'Estoque', exact: true })
+          .isVisible(),
+        true,
+      );
+      await page.keyboard.press('Escape');
+      await page.locator('.sidebar.is-open').waitFor({ state: 'detached' });
+    } else
+      assert.equal(
+        await page
+          .locator('.sidebar')
+          .getByRole('link', { name: 'Clientes', exact: true })
+          .getAttribute('aria-current'),
+        'page',
+      );
     const trigger = page.getByRole('button', {
       name: 'Novo cadastro',
       exact: true,
@@ -174,7 +186,7 @@ try {
     await page.close();
   }
   console.log(
-    'Desktop/mobile: full module navigation, secondary shortcuts, dialog focus/trap, Escape, discard guard, return focus, discarded form reset, real cart persistence keyboard tabs, per-action finance fields and transform error preservation passed.',
+    'Desktop/mobile: full module navigation, mobile Mais sheet, dialog focus/trap, Escape, discard guard, return focus, discarded form reset, real cart persistence keyboard tabs, per-action finance fields and transform error preservation passed.',
   );
 } finally {
   await browser.close();

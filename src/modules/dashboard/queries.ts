@@ -63,6 +63,8 @@ export async function dashboard(actor: Actor, month: string, type?: string) {
         payments
           .filter((p) => p.direction === direction)
           .reduce((s, p) => s.plus(p.amount.toString()), D(0));
+      // Faturamento: vendas concluídas no mês, com o mesmo estorno do resultado.
+      let revenue = sales.reduce((s, v) => s.plus(v.total.toString()), D(0));
       let profit = sales.reduce(
         (s, v) => s.plus(D(v.total.toString()).minus(v.costTotal.toString())),
         D(0),
@@ -78,6 +80,8 @@ export async function dashboard(actor: Actor, month: string, type?: string) {
         ...cancelled,
       ];
       for (const sale of reversals)
+        revenue = revenue.minus(sale.total.toString());
+      for (const sale of reversals)
         profit = profit.minus(
           D(sale.total.toString()).minus(sale.costTotal.toString()),
         );
@@ -89,6 +93,7 @@ export async function dashboard(actor: Actor, month: string, type?: string) {
         stock: (stock._sum.stock ?? 0) - (stock._sum.reserved ?? 0),
         physicalStock: stock._sum.stock ?? 0,
         reservedStock: stock._sum.reserved ?? 0,
+        revenue: revenue.toFixed(2),
         profit: profit.toFixed(2),
         recentSales,
         entries,

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 export const metadata: Metadata = {
-  title: 'Revenda Fácil | Gestão com leveza',
+  title: 'Revenda Fácil',
   description: 'Estoque, vendas e dinheiro da sua revenda, em um só lugar.',
   appleWebApp: {
     capable: true,
