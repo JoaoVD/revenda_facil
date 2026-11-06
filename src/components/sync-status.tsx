@@ -120,29 +120,42 @@ export function SyncStatus({ userId, organizationId }: Scope) {
       document.removeEventListener('click', navigate, true);
     };
   }, [userId, organizationId]);
+  const tone =
+    status === 'Tudo sincronizado'
+      ? 'ok'
+      : status === 'Verificando comunicação…'
+        ? 'idle'
+        : 'attention';
   return (
-    <div className="sync-status" role="status">
-      <span>{status}</span>
-      {locked && (
-        <button
-          type="button"
-          className="small-button"
-          onClick={() => void prepareExplicitly()}
-        >
-          Liberar cópia local nesta sessão
-        </button>
-      )}
-      <details className="sync-tools">
-        <summary>Opções de sincronização</summary>
-        <div>
-          <Link prefetch={false} href="/operacao">
-            Dados deste aparelho e sincronização →
-          </Link>
-          <Link prefetch={false} href="/pendencias">
-            Conferir pendências
-          </Link>
-        </div>
-      </details>
-    </div>
+    <details
+      className="sync-status"
+      data-tone={tone}
+      key={locked ? 'locked' : 'free'}
+      open={locked || undefined}
+    >
+      <summary>
+        <span className="sync-dot" aria-hidden="true" />
+        <span className="sync-label" role="status">
+          {status}
+        </span>
+      </summary>
+      <div className="sync-tools">
+        {locked && (
+          <button
+            type="button"
+            className="small-button"
+            onClick={() => void prepareExplicitly()}
+          >
+            Liberar cópia local nesta sessão
+          </button>
+        )}
+        <Link prefetch={false} href="/operacao">
+          Dados deste aparelho e sincronização →
+        </Link>
+        <Link prefetch={false} href="/pendencias">
+          Conferir pendências →
+        </Link>
+      </div>
+    </details>
   );
 }

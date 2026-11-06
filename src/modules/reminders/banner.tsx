@@ -21,7 +21,6 @@ export async function ReminderBanner({
       <details>
         <summary>Opções do lembrete</summary>
         <NoticeActions noticeId={notice.id} />
-        <p className="hint">Adiar ou revisar o aviso não quita dívidas.</p>
       </details>
     </aside>
   );

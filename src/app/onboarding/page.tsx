@@ -9,7 +9,6 @@ export default async function Onboarding() {
     redirect('/');
   return (
     <main className="onboarding card">
-      <p className="eyebrow">PRIMEIRO PASSO</p>
       <h1>Vamos conhecer sua revenda</h1>
       <p>Você poderá atualizar estes dados depois.</p>
       <OnboardingForm />

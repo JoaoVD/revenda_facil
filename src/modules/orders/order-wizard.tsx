@@ -345,7 +345,9 @@ export function OrderWizard({
           <section
             className={`order-catalog ${step !== 1 ? 'mobile-step-hidden' : ''}`}
           >
-            <p className="step-label">1 de 3 · Escolher produtos</p>
+            <p className="step-label" data-step="1">
+              1 de 3 · Escolher produtos
+            </p>
             <Field
               label="Buscar produto ou marca"
               type="search"
@@ -450,7 +452,9 @@ export function OrderWizard({
               ))}
             </ul>
             <div className={step !== 2 ? 'mobile-step-hidden' : ''}>
-              <p className="step-label">2 de 3 · Cliente e atendimento</p>
+              <p className="step-label" data-step="2">
+                2 de 3 · Cliente e atendimento
+              </p>
               <CustomerPicker
                 customers={customers}
                 name={customerName}
@@ -516,7 +520,9 @@ export function OrderWizard({
               />
             </div>
             <div className={step !== 3 ? 'mobile-step-hidden' : ''}>
-              <p className="step-label">3 de 3 · Pagamento e confirmação</p>
+              <p className="step-label" data-step="3">
+                3 de 3 · Pagamento e confirmação
+              </p>
               <Select
                 label="Recebimento"
                 value={payKind}
@@ -625,14 +631,12 @@ export function OrderWizard({
                 {message}
               </p>
             )}
-            <p className="hint">
-              {provisional
-                ? 'Salvo neste aparelho. Estoque e valores serão validados ao sincronizar; a reserva é provisória e pode precisar de conferência.'
-                : mode === 'IMMEDIATE'
-                  ? 'Confirma a saída física agora.'
-                  : 'Confirma e reserva estoque. A baixa ocorrerá ao concluir o atendimento.'}{' '}
-              Entrega e recebimento são independentes.
-            </p>
+            {provisional && (
+              <p className="hint">
+                Sem internet: o pedido fica salvo neste aparelho e é conferido
+                ao sincronizar.
+              </p>
+            )}
             <div className="order-actions">
               {step > 1 && (
                 <button

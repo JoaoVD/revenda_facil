@@ -38,11 +38,7 @@ export function OrderReceipt({
         <option value="CASH">Dinheiro</option>
         <option value="CARD">Cartão</option>
       </Select>
-      <p className="hint">
-        Ao confirmar, o valor será distribuído entre parcelas na ordem exibida,
-        cobrindo cada saldo antes da próxima. Pode ser menor ou maior que uma
-        parcela, até o saldo total.
-      </p>
+      <p className="hint">O valor abate as parcelas na ordem.</p>
     </OperationForm>
   );
 }
