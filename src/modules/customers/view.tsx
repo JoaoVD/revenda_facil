@@ -6,6 +6,8 @@ import { MessageCircle } from 'lucide-react';
 import { Empty } from '@/components/ui';
 import { CustomerForm } from '@/components/domain-forms';
 import { netReceived } from '@/modules/finance/ledger';
+import { whatsappLink } from '@/lib/whatsapp';
+import Link from 'next/link';
 export async function CustomersView({ actor, query }: ViewProps) {
   const organizationId = actor.organizationId;
   const skip = (query.page - 1) * 25;
@@ -56,7 +58,7 @@ export async function CustomersView({ actor, query }: ViewProps) {
                 D(0),
               ),
               digits = (c.phone || '').replace(/\D/g, ''),
-              whatsapp = digits.length <= 11 ? `55${digits}` : digits;
+              whatsapp = whatsappLink(c.phone);
             return (
               <li key={c.id}>
                 <div className="customer-main">
@@ -73,14 +75,19 @@ export async function CustomersView({ actor, query }: ViewProps) {
                   </small>
                 </div>
                 {open.gt(0) && (
-                  <strong className="customer-balance">
+                  <Link
+                    prefetch={false}
+                    className="customer-balance"
+                    href={`/receber?q=${encodeURIComponent(c.name)}`}
+                    aria-label={`Ver ${brl(open.toString())} a receber de ${c.name}`}
+                  >
                     {brl(open.toString())}
-                  </strong>
+                  </Link>
                 )}
-                {digits.length >= 10 && (
+                {whatsapp && (
                   <div className="customer-contact">
                     <a
-                      href={`https://wa.me/${whatsapp}`}
+                      href={whatsapp}
                       target="_blank"
                       rel="noreferrer"
                       aria-label={`WhatsApp de ${c.name}`}

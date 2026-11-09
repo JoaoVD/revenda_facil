@@ -11,6 +11,7 @@ import { CancelForm } from '@/modules/sales/cancel-form';
 import { OrderReceipt } from '@/modules/orders/order-receipt';
 import { RefundForm } from '@/modules/orders/refund-form';
 import { netReceived } from '@/modules/finance/ledger';
+import { firstName, whatsappLink } from '@/lib/whatsapp';
 import {
   orderInclude,
   pendingBalance,
@@ -57,15 +58,36 @@ export default async function OrderDetail({
   const balance = pendingBalance(s),
     received = netReceived(s.payments);
   const active = s.status === 'CONFIRMED';
-  const phone = s.customer?.phone?.replace(/\D/g, '') || '';
+  const name = firstName(s.customer?.name);
+  const summary = [
+    `Olá${name ? `, ${name}` : ''}! Segue o resumo do seu pedido:`,
+    ...s.items.map(
+      (i) => `• ${i.quantity}× ${i.productName}: ${brl(i.total.toString())}`,
+    ),
+    D(s.discount.toString()).gt(0)
+      ? `Desconto: ${brl(s.discount.toString())}`
+      : '',
+    `Total: ${brl(s.total.toString())}`,
+    active && balance.gt(0) ? `Falta pagar: ${brl(balance)}` : '',
+    active && s.fulfillmentStatus === 'PENDING' && s.expectedDate
+      ? `${s.fulfillmentMode === 'PICKUP' ? 'Retirada' : 'Entrega'} prevista: ${s.expectedDate.split('-').reverse().join('/')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const whatsapp = whatsappLink(s.customer?.phone, summary);
   return (
     <div className="order-detail">
       <Link className="text-link" href="/pedidos">
         ← Pedidos
       </Link>
       <PageTitle
-        title={`Pedido #${s.id.slice(0, 8)}`}
-        description={`Criado em ${dateTime(s.createdAt)}`}
+        title={
+          s.customer?.name
+            ? `Pedido de ${s.customer.name}`
+            : 'Pedido sem cadastro'
+        }
+        description={`#${s.id.slice(0, 8)} · criado em ${dateTime(s.createdAt)}`}
       />
       {s.status === 'CONFIRMED' && s.fulfillmentStatus === 'PENDING' && (
         <Link className="small-button" href={`/pedidos/${s.id}/editar`}>
@@ -78,14 +100,14 @@ export default async function OrderDetail({
             <UserRound size={24} />
             {s.customer?.name || 'Sem cadastro'}
           </h2>
-          {phone && (
+          {whatsapp && (
             <a
               className="small-button"
-              href={`https://wa.me/${phone.startsWith('55') ? phone : `55${phone}`}?text=${encodeURIComponent('Olá! Vamos conversar sobre seu pedido?')}`}
+              href={whatsapp}
               target="_blank"
               rel="noopener noreferrer"
             >
-              WhatsApp
+              Enviar resumo no WhatsApp
             </a>
           )}
         </div>
