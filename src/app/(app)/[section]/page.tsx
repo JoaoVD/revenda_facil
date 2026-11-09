@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { requireActor } from '@/modules/auth/server';
 import { PageTitle } from '@/components/ui';
+import { normalizeParams } from '@/components/list-tools';
 import { ProductsView } from '@/modules/products/view';
 import { InventoryView } from '@/modules/inventory/view';
 import { PurchasesView } from '@/modules/purchases/view';
@@ -39,13 +40,13 @@ export default async function Section({
   searchParams,
 }: {
   params: Promise<{ section: string }>;
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { section } = await params;
   if (!Object.hasOwn(views, section)) notFound();
   const View = views[section as keyof typeof views],
     actor = await requireActor(),
-    query = await searchParams,
+    query = normalizeParams(await searchParams),
     title = titles[section];
   const numeric = Number(query.page),
     page = Number.isFinite(numeric)
@@ -54,8 +55,15 @@ export default async function Section({
   return (
     <>
       <PageTitle title={title} />
-      <View actor={actor} query={{ page, q: query.q }} />
-      {!['produtos', 'configuracoes', 'relatorios'].includes(section) && (
+      <View actor={actor} query={{ page, q: query.q, params: query }} />
+      {![
+        'produtos',
+        'configuracoes',
+        'relatorios',
+        'estoque',
+        'compras',
+        'financeiro',
+      ].includes(section) && (
         <nav className="pagination" aria-label="Páginas">
           <Link
             aria-disabled={page <= 1}

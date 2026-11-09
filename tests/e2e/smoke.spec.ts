@@ -69,7 +69,7 @@ test('cadastro, compra, venda e estoque com autenticação real', async ({
     .click();
   await page.getByRole('button', { name: 'Finalizar venda' }).click();
   await expect(page.locator('.success')).toContainText('Pedido confirmado');
-  await page.goto('/estoque');
-  const row = page.getByRole('row').filter({ hasText: name }).first();
-  await expect(row).toContainText('8 unidades');
+  await page.goto(`/estoque?q=${encodeURIComponent(name)}`);
+  const card = page.locator('.item-card').filter({ hasText: name }).first();
+  await expect(card.locator('.item-value strong')).toHaveText('8');
 });
