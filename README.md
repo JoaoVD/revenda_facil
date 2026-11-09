@@ -44,6 +44,17 @@ Para preparar uma conta separada com produtos, compras, pedidos, parcelas e hist
 - **Pedido:** o título traz o nome da cliente e "Enviar resumo no WhatsApp" envia itens, total, saldo e previsão.
 - **Clientes:** o valor em aberto abre Receber filtrado pela cliente.
 
+### Listas em cards com filtros
+
+Estoque, Pedidos, Compras e Financeiro usam cards em vez de tabelas, com 12 por página e "Página X de Y · N itens". No topo há números de resumo; os que têm atalho aplicam o filtro ao toque. A busca e os filtros ficam na URL: é possível salvar ou compartilhar uma visão filtrada, e funcionam sem JavaScript. O filtro principal fica sempre visível; os demais ficam em "Mais filtros", que abre sozinho quando algum está ativo. "Limpar filtros" volta à visão completa.
+
+- **Estoque:** abas Saldo dos produtos e Movimentações. Resumo de unidades disponíveis, valor em estoque (custo médio), abaixo do mínimo e sem estoque. Filtros por situação (abaixo do mínimo, sem estoque, com reserva, em dia, inativos), marca e ordenação (A–Z, menor saldo, mais valor parado). Movimentações filtram por tipo e produto.
+- **Pedidos:** resumo de pendentes, saldo a receber e atrasados. Busca por cliente ou produto; filtros por atendimento, pagamento (com saldo, atrasados, pagos) e tipo (entrega, retirada, na hora).
+- **Compras:** resumo de comprado, pago e a pagar. Busca por fornecedor ou produto, mês e situação de pagamento. Cada compra em aberto tem "Registrar pagamento" com a compra já escolhida e atalho para o valor total.
+- **Financeiro:** entradas, saídas e saldo do mês escolhido, lançamentos agrupados por dia. Filtros por tipo, categoria (vendas, compras, despesas), meio e descrição.
+
+Pedidos e compras filtram em memória sobre os 1000 registros mais recentes que atendem à busca; movimentações e financeiro paginam direto no banco.
+
 Os botões de WhatsApp aparecem somente quando a cliente tem telefone com DDD (10 ou 11 dígitos; o DDI 55 é acrescentado automaticamente). Nada é enviado pelo sistema: o WhatsApp abre com o texto para a revendedora revisar e enviar.
 
 Estoque físico, reservado e disponível são separados. Confirmação reserva; entrega/retirada baixa uma vez; recebimento não movimenta estoque. Dinheiro usa Decimal e `numeric`, com validação, transações e idempotência. Vendas antigas foram migradas como concluídas sem novas baixas.
