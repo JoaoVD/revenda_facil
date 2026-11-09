@@ -737,6 +737,103 @@ label {
   color: var(--ink);
   font-weight: 500;
 }
+/* Escolha única em botões de toque (rádios nativos). */
+.choice-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.choice-group legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--ink);
+  font-weight: 500;
+}
+.choice-group > div {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: #ece8dd;
+}
+.choice-group label {
+  position: relative;
+  display: grid;
+}
+.choice-group input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.choice-group span {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.choice-group input:checked + span {
+  background: var(--white);
+  color: var(--green-dark);
+  box-shadow: 0 1px 3px rgb(15 48 40 / 0.14);
+}
+.choice-group input:focus-visible + span {
+  outline: 2px solid var(--green);
+  outline-offset: 1px;
+}
+/* Atalhos rápidos (datas, parcelas, cobrança). */
+.quick-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.quick-picks button,
+.quick-picks a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid #cfd5c9;
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.quick-picks button[aria-pressed='true'] {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+.quick-picks .whatsapp {
+  border-color: #8fc2a4;
+  color: #146c43;
+}
+.due-tag {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.due-tag[data-late='true'] {
+  color: var(--coral-dark);
+}
 .form-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1313,6 +1410,10 @@ td small {
   white-space: nowrap;
 }
 .customer-balance {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: rgb(153 61 36 / 0.35);
+  text-underline-offset: 3px;
   color: var(--coral-dark);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

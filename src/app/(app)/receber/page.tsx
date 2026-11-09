@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { MessageCircle } from 'lucide-react';
 import { db } from '@/lib/db';
 import { D, brl } from '@/lib/money';
 import { requireActor } from '@/modules/auth/server';
@@ -10,6 +11,25 @@ import {
   fulfillmentLabel,
 } from '@/modules/orders/queries';
 import { OrderReceipt } from '@/modules/orders/order-receipt';
+import { brDate, nextDue } from '@/modules/orders/installments';
+import { firstName, whatsappLink } from '@/lib/whatsapp';
+
+function chargeMessage(
+  name: string | undefined,
+  amount: string,
+  items: string,
+  due: { date: string; lateDays: number } | null,
+) {
+  const hello = firstName(name)
+    ? `Olá, ${firstName(name)}! Tudo bem?`
+    : 'Olá! Tudo bem?';
+  const when = due
+    ? due.lateDays > 0
+      ? `, que venceu em ${brDate(due.date)}`
+      : `, com vencimento em ${brDate(due.date)}`
+    : '';
+  return `${hello} Passando para lembrar do valor de ${amount} referente a ${items}${when}. Se precisar, posso enviar a chave Pix. Agradeço desde já!`;
+}
 export default async function Receivables({
   searchParams,
 }: {
@@ -48,6 +68,13 @@ export default async function Receivables({
             )
           : true),
   );
+  const due = new Map(sales.map((s) => [s.id, nextDue(s.installments, today)]));
+  sales.sort((a, b) => {
+    const x = due.get(a.id),
+      y = due.get(b.id);
+    if (!x || !y) return x ? -1 : y ? 1 : 0;
+    return x.date.localeCompare(y.date);
+  });
   const total = sales.reduce((sum, s) => sum.plus(pendingBalance(s)), D(0));
   const filters = [
     ['', 'Em aberto'],
@@ -105,11 +132,38 @@ export default async function Receivables({
                     {fulfillmentLabel(s)} ·{' '}
                     {s.items.map((i) => i.productName).join(', ')}
                   </small>
+                  <DueTag due={due.get(s.id) ?? null} today={today} />
                 </Link>
                 <strong className="receivable-value">
                   {brl(pendingBalance(s))}
                 </strong>
               </div>
+              {(() => {
+                const link = whatsappLink(
+                  s.customer?.phone,
+                  chargeMessage(
+                    s.customer?.name,
+                    brl(pendingBalance(s)),
+                    s.items.map((i) => i.productName).join(', '),
+                    due.get(s.id) ?? null,
+                  ),
+                );
+                return (
+                  link && (
+                    <div className="quick-picks">
+                      <a
+                        className="whatsapp"
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <MessageCircle size={16} />
+                        Cobrar no WhatsApp
+                      </a>
+                    </div>
+                  )
+                );
+              })()}
               <details className="receipt-panel">
                 <summary>Registrar recebimento</summary>
                 <OrderReceipt
@@ -124,5 +178,25 @@ export default async function Receivables({
         <Empty>Nenhum valor a receber neste filtro.</Empty>
       )}
     </>
+  );
+}
+
+function DueTag({
+  due,
+  today,
+}: {
+  due: { date: string; lateDays: number } | null;
+  today: string;
+}) {
+  if (!due) return <span className="due-tag">Sem data combinada</span>;
+  const late = due.lateDays > 0;
+  return (
+    <span className="due-tag" data-late={late}>
+      {late
+        ? `Atrasado há ${due.lateDays} ${due.lateDays === 1 ? 'dia' : 'dias'} · venceu ${brDate(due.date)}`
+        : due.date === today
+          ? 'Vence hoje'
+          : `Próxima parcela em ${brDate(due.date)}`}
+    </span>
   );
 }

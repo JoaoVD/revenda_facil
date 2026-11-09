@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { OperationForm } from '@/components/operation-form';
-import { Field, Select } from '@/components/ui';
+import { Field, ChoiceGroup } from '@/components/ui';
 import { brl } from '@/lib/money';
 export function OrderReceipt({
   saleId,
@@ -10,12 +10,17 @@ export function OrderReceipt({
   saleId: string;
   balance: string;
 }) {
-  const [key, setKey] = useState(() => crypto.randomUUID());
+  const [key, setKey] = useState(() => crypto.randomUUID()),
+    [amount, setAmount] = useState(''),
+    [method, setMethod] = useState<'PIX' | 'CASH' | 'CARD'>('PIX');
   return (
     <OperationForm
       operation="payment"
       button="Confirmar recebimento"
-      onSuccess={() => setKey(crypto.randomUUID())}
+      onSuccess={() => {
+        setKey(crypto.randomUUID());
+        setAmount('');
+      }}
       transform={(data) => ({
         ...Object.fromEntries(data),
         idempotencyKey: key,
@@ -32,12 +37,29 @@ export function OrderReceipt({
         max={balance}
         step="0.01"
         required
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
       />
-      <Select label="Meio do recebimento" name="method">
-        <option value="PIX">Pix</option>
-        <option value="CASH">Dinheiro</option>
-        <option value="CARD">Cartão</option>
-      </Select>
+      <div className="quick-picks">
+        <button
+          type="button"
+          aria-pressed={amount === balance}
+          onClick={() => setAmount(balance)}
+        >
+          Recebi tudo · {brl(balance)}
+        </button>
+      </div>
+      <ChoiceGroup
+        label="Meio do recebimento"
+        name="method"
+        value={method}
+        options={[
+          ['PIX', 'Pix'],
+          ['CASH', 'Dinheiro'],
+          ['CARD', 'Cartão'],
+        ]}
+        onChange={setMethod}
+      />
       <p className="hint">O valor abate as parcelas na ordem.</p>
     </OperationForm>
   );

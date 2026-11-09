@@ -56,7 +56,7 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
   await page.getByLabel('Endereço de entrega').fill('Rua TEST, 120');
   if (viewport.width === 390)
     await page.getByRole('button', { name: /Continuar/ }).click();
-  await page.getByLabel('Recebimento', { exact: true }).selectOption('PART');
+  await page.getByRole('radio', { name: 'Uma parte' }).check();
   await page.getByLabel('Valor já recebido (R$)').fill('60');
   await page.getByRole('button', { name: '+ Parcela', exact: true }).click();
   await page.getByLabel('1ª parcela (R$)').fill('140');
@@ -202,13 +202,13 @@ test('pedido e fatos offline sincronizam com a sessão SaaS', async ({
     await page
       .getByRole('button', { name: /^Selecionar Cliente OFFLINE TEST/ })
       .click();
-    await page.getByLabel('Como será o atendimento?').selectOption('PICKUP');
+    await page.getByRole('radio', { name: 'Retirada' }).check();
     await page.getByRole('button', { name: /Continuar/ }).click();
     await page
       .getByRole('button', { name: 'Confirmar pedido', exact: true })
       .click();
     await expect(
-      page.getByRole('heading', { name: /^Pedido #/ }),
+      page.getByRole('heading', { name: /^Pedido (de|sem)/ }),
     ).toBeVisible();
     await page.getByLabel('Valor efetivamente recebido (R$)').fill('60');
     await page

@@ -4,12 +4,35 @@ import { useRouter } from 'next/navigation';
 import { Package, Plus, Minus, ArrowLeft } from 'lucide-react';
 import Image from 'next/image';
 import { operationAction, type Result } from '@/app/actions';
-import { Field, Select, Card } from '@/components/ui';
+import { Field, Card, ChoiceGroup } from '@/components/ui';
 import { brl, D } from '@/lib/money';
+import {
+  addDays,
+  addMonths,
+  isoToday,
+  splitInstallments,
+} from './installments';
+
 import type { ProductOption } from '@/modules/products/contracts';
 import { localCommands, type Scope } from '@/modules/sync/local-store';
 import { CustomerPicker } from '@/modules/customers/customer-picker';
 import { useOrderDraft } from './use-order-draft';
+
+const modes = [
+  ['DELIVERY', 'Entrega'],
+  ['PICKUP', 'Retirada'],
+  ['IMMEDIATE', 'Já entregue'],
+] as const;
+const payKinds = [
+  ['LATER', 'Depois'],
+  ['PART', 'Uma parte'],
+  ['ALL', 'Tudo'],
+] as const;
+const methods = [
+  ['PIX', 'Pix'],
+  ['CASH', 'Dinheiro'],
+  ['CARD', 'Cartão'],
+] as const;
 
 export function OrderWizard({
   products,
@@ -109,6 +132,14 @@ export function OrderWizard({
         ? '0'
         : paid || '0';
   const balance = total.minus(received);
+  const partsSum = parts.reduce((sum, p) => {
+    try {
+      return sum.plus(p.amount || '0');
+    } catch {
+      return sum;
+    }
+  }, D(0));
+  const partsMatch = partsSum.eq(balance);
   const count = items.reduce((sum, p) => sum + cart[p.id], 0);
   const unavailable = Object.keys(cart).filter(
     (id) => cart[id] > 0 && !products.some((p) => p.id === id),
@@ -162,6 +193,25 @@ export function OrderWizard({
     ) {
       setMessage(
         'Informe o nome do cliente para acompanhar este pedido ou valor a receber.',
+      );
+      return;
+    }
+    // Recusas previsíveis do servidor: avisar antes do envio, para o
+    // rascunho não ficar preso em "envio para conferir".
+    if (!draft.submission && mode === 'DELIVERY' && !address.trim()) {
+      setStep(2);
+      setMessage('Informe o endereço de entrega.');
+      setTimeout(() => document.getElementById('order-address')?.focus());
+      return;
+    }
+    if (
+      !draft.submission &&
+      balance.gt(0) &&
+      parts.length &&
+      (!partsMatch || parts.some((p) => !(Number(p.amount) > 0)))
+    ) {
+      setMessage(
+        `A soma das parcelas deve ser ${brl(balance)}. Ajuste os valores ou divida de novo.`,
       );
       return;
     }
@@ -477,15 +527,13 @@ export function OrderWizard({
                   setForceNewCustomer(true);
                 }}
               />
-              <Select
+              <ChoiceGroup
                 label="Como será o atendimento?"
-                value={mode}
-                onChange={(e) => setMode(e.target.value)}
-              >
-                <option value="DELIVERY">Entrega</option>
-                <option value="PICKUP">Retirada</option>
-                <option value="IMMEDIATE">Venda imediata · já entregue</option>
-              </Select>
+                name="fulfillment-mode"
+                value={mode as (typeof modes)[number][0]}
+                options={modes}
+                onChange={setMode}
+              />
               {mode !== 'IMMEDIATE' && (
                 <>
                   <Field
@@ -494,9 +542,36 @@ export function OrderWizard({
                     value={expectedDate}
                     onChange={(e) => setDate(e.target.value)}
                   />
+                  <div
+                    className="quick-picks"
+                    role="group"
+                    aria-label="Atalhos de data"
+                  >
+                    {(
+                      [
+                        ['Hoje', 0],
+                        ['Amanhã', 1],
+                        ['Em 7 dias', 7],
+                      ] as const
+                    ).map(([text, days]) => {
+                      const date = addDays(isoToday(), days);
+                      return (
+                        <button
+                          key={text}
+                          type="button"
+                          aria-pressed={expectedDate === date}
+                          onClick={() => setDate(date)}
+                        >
+                          {text}
+                        </button>
+                      );
+                    })}
+                  </div>
                   {mode === 'DELIVERY' && (
                     <Field
                       label="Endereço de entrega"
+                      id="order-address"
+                      autoComplete="street-address"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                       maxLength={500}
@@ -523,15 +598,13 @@ export function OrderWizard({
               <p className="step-label" data-step="3">
                 3 de 3 · Pagamento e confirmação
               </p>
-              <Select
-                label="Recebimento"
-                value={payKind}
-                onChange={(e) => setPayKind(e.target.value)}
-              >
-                <option value="LATER">Vai receber depois</option>
-                <option value="PART">Recebeu uma parte</option>
-                <option value="ALL">Recebeu tudo</option>
-              </Select>
+              <ChoiceGroup
+                label="Quanto já recebeu?"
+                name="pay-kind"
+                value={payKind as (typeof payKinds)[number][0]}
+                options={payKinds}
+                onChange={setPayKind}
+              />
               {payKind === 'PART' && (
                 <Field
                   label="Valor já recebido (R$)"
@@ -543,15 +616,13 @@ export function OrderWizard({
                 />
               )}
               {payKind !== 'LATER' && (
-                <Select
+                <ChoiceGroup
                   label="Meio do recebimento"
-                  value={method}
-                  onChange={(e) => setMethod(e.target.value)}
-                >
-                  <option value="PIX">Pix</option>
-                  <option value="CASH">Dinheiro</option>
-                  <option value="CARD">Cartão</option>
-                </Select>
+                  name="pay-method"
+                  value={method as (typeof methods)[number][0]}
+                  options={methods}
+                  onChange={setMethod}
+                />
               )}
               {balance.gt(0) && (
                 <>
@@ -565,6 +636,36 @@ export function OrderWizard({
                     Sem parcelas, o saldo fica em aberto, sem vencimento. Com
                     parcelas, a soma deve ser {brl(balance)}.
                   </p>
+                  <div
+                    className="quick-picks"
+                    role="group"
+                    aria-label="Dividir o saldo em parcelas mensais"
+                  >
+                    {[1, 2, 3, 4].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        aria-pressed={parts.length === n && partsMatch}
+                        onClick={() =>
+                          setParts(
+                            splitInstallments(
+                              balance.toFixed(2),
+                              n,
+                              addMonths(isoToday(), 1),
+                            ),
+                          )
+                        }
+                      >
+                        {n === 1 ? '1× em 30 dias' : `${n}× mensais`}
+                      </button>
+                    ))}
+                  </div>
+                  {parts.length > 0 && !partsMatch && (
+                    <p className="notice" role="status">
+                      As parcelas somam {brl(partsSum)}; o saldo é{' '}
+                      {brl(balance)}. Ajuste os valores ou divida de novo.
+                    </p>
+                  )}
                   {parts.map((part, index) => (
                     <div className="installment-fields" key={index}>
                       <Field

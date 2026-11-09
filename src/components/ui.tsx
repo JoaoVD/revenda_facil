@@ -106,3 +106,41 @@ export function PageTitle({
     </div>
   );
 }
+
+/**
+ * Escolha única com botões grandes de toque (rádios nativos estilizados).
+ * Substitui listas suspensas quando há poucas opções.
+ */
+export function ChoiceGroup<T extends string>({
+  label,
+  name,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  name: string;
+  value: T;
+  options: readonly (readonly [value: T, label: string])[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <fieldset className="choice-group">
+      <legend>{label}</legend>
+      <div>
+        {options.map(([option, text]) => (
+          <label key={option}>
+            <input
+              type="radio"
+              name={name}
+              value={option}
+              checked={value === option}
+              onChange={() => onChange(option)}
+            />
+            <span>{text}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
