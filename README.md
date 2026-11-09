@@ -37,6 +37,15 @@ Para preparar uma conta separada com produtos, compras, pedidos, parcelas e hist
 - `/operacao`: cópia e fila persistentes do aparelho, também usadas no fallback offline.
 - Produtos, compras, estoque, clientes, financeiro, fiscal, relatórios e configurações permanecem na navegação.
 
+### Atalhos do dia a dia
+
+- **Novo pedido:** atendimento (Entrega, Retirada, Já entregue), recebimento (Depois, Uma parte, Tudo) e meio (Pix, Dinheiro, Cartão) são botões de toque. A previsão tem atalhos Hoje, Amanhã e Em 7 dias. O saldo pode ser dividido em 1× a 4× mensais, a partir de 30 dias, com centavos exatos (a diferença fica na 1ª parcela). Endereço de entrega e soma das parcelas são conferidos antes do envio, para o rascunho não ficar preso em "envio para conferir".
+- **Receber:** cada pedido mostra atraso em dias, "Vence hoje", próxima parcela ou "Sem data combinada". A lista começa pelo vencimento mais antigo. "Cobrar no WhatsApp" abre a conversa com mensagem pronta (nome, valor, produtos e vencimento); "Recebi tudo" preenche o saldo no recebimento.
+- **Pedido:** o título traz o nome da cliente e "Enviar resumo no WhatsApp" envia itens, total, saldo e previsão.
+- **Clientes:** o valor em aberto abre Receber filtrado pela cliente.
+
+Os botões de WhatsApp aparecem somente quando a cliente tem telefone com DDD (10 ou 11 dígitos; o DDI 55 é acrescentado automaticamente). Nada é enviado pelo sistema: o WhatsApp abre com o texto para a revendedora revisar e enviar.
+
 Estoque físico, reservado e disponível são separados. Confirmação reserva; entrega/retirada baixa uma vez; recebimento não movimenta estoque. Dinheiro usa Decimal e `numeric`, com validação, transações e idempotência. Vendas antigas foram migradas como concluídas sem novas baixas.
 
 Leia o [guia de operação e sincronização](docs/OPERACAO_E_SINCRONIZACAO.md) para regras, preparação offline, conflitos, segurança e backup. A configuração fiscal está em [Focus NFe](COMO_CONFIGURAR_FOCUS.md); produção fiscal permanece bloqueada.
