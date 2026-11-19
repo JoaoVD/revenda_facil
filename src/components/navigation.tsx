@@ -65,12 +65,12 @@ const otherLinks: readonly NavLink[] = [
   ['/configuracoes', 'Configurações', Settings, 'gray'],
 ];
 
+const allLinks = [...dailyLinks, ordersLink, ...otherLinks];
+
 /** Título da tela atual, mostrado na barra superior. */
 function titleFor(path: string) {
   if (path === '/pedidos/novo') return 'Novo pedido';
-  const link = [...dailyLinks, ordersLink, ...otherLinks].find(([href]) =>
-    isActive(path, href),
-  );
+  const link = allLinks.find(([href]) => isActive(path, href));
   return link?.[1] ?? 'Revenda Fácil';
 }
 
@@ -104,19 +104,26 @@ export function Navigation({
     document.addEventListener('keydown', close);
     return () => document.removeEventListener('keydown', close);
   }, [open]);
-  const item = ([href, label, Icon, tone]: NavLink, className = '') => (
+  /** `tab`: ícone simples da barra de abas; senão, quadradinho colorido do menu. */
+  const item = (
+    [href, label, Icon, tone]: NavLink,
+    { className, tab = false }: { className?: string; tab?: boolean } = {},
+  ) => (
     <Link
       prefetch={false}
       key={href}
       href={href}
-      className={className || undefined}
+      className={className}
       onClick={() => setOpen(false)}
       aria-current={isActive(path, href) ? 'page' : undefined}
     >
-      <span className={`tile t-${tone}`} aria-hidden="true">
-        <Icon size={15} strokeWidth={2.2} />
-      </span>
-      <Icon className="tab-icon" size={22} aria-hidden="true" />
+      {tab ? (
+        <Icon size={22} aria-hidden="true" />
+      ) : (
+        <span className={`tile t-${tone}`} aria-hidden="true">
+          <Icon size={15} strokeWidth={2.2} />
+        </span>
+      )}
       {label}
     </Link>
   );
@@ -179,8 +186,8 @@ export function Navigation({
           Novo pedido
         </Link>
         <nav aria-label="Navegação principal">
-          {dailyLinks.map((link) => item(link, 'nav-daily'))}
-          {item(ordersLink, 'nav-daily')}
+          {dailyLinks.map((link) => item(link, { className: 'nav-daily' }))}
+          {item(ordersLink, { className: 'nav-daily' })}
           {otherLinks.map((link) => (
             <Fragment key={link[0]}>
               {link[4] && <span className="nav-group">{link[4]}</span>}
@@ -209,8 +216,8 @@ export function Navigation({
         />
       )}
       <nav className="bottom-nav" aria-label="Atalhos">
-        {item(dailyLinks[0])}
-        {item(dailyLinks[1])}
+        {item(dailyLinks[0], { tab: true })}
+        {item(dailyLinks[1], { tab: true })}
         <Link
           prefetch={false}
           href="/pedidos/novo"
@@ -222,13 +229,15 @@ export function Navigation({
           </span>
           Pedido
         </Link>
-        {item(dailyLinks[2])}
+        {item(dailyLinks[2], { tab: true })}
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-expanded={open}
           aria-current={
-            [ordersLink, ...otherLinks].some(([href]) => isActive(path, href))
+            allLinks
+              .slice(dailyLinks.length)
+              .some(([href]) => isActive(path, href))
               ? 'page'
               : undefined
           }
