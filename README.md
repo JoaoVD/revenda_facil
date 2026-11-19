@@ -57,6 +57,12 @@ Pedidos e compras filtram em memória sobre os 1000 registros mais recentes que 
 
 Os botões de WhatsApp aparecem somente quando a cliente tem telefone com DDD (10 ou 11 dígitos; o DDI 55 é acrescentado automaticamente). Nada é enviado pelo sistema: o WhatsApp abre com o texto para a revendedora revisar e enviar.
 
+Em **Compras → Receber mercadorias**, importe o XML completo de uma NF-e de produção emitida para o CNPJ da revenda. Confira os vínculos, o preço de venda dos produtos novos e a conversão das embalagens antes de confirmar. A compra e o estoque são atualizados juntos, com uma entrada por chave fiscal. O vínculo e a conversão ficam disponíveis para a próxima nota do fornecedor. A importação confere os dados do arquivo e o protocolo presente nele. A consulta de situação atual é feita no fluxo da Focus. O XML original deve continuar guardado pela revenda.
+
+Para **Buscar nota** com o leitor do DANFE, configure no servidor `FOCUS_RECEIVED_CNPJ` e `FOCUS_RECEIVED_TOKEN` da empresa com NF-e recebidas habilitada na [Focus NFe](https://doc.focusnfe.com.br/reference/nfe-recebidas). A aplicação consulta e baixa notas completas em modo somente leitura. Se a nota ainda estiver disponível apenas como resumo, use o XML original enviado pelo fornecedor ou confira a manifestação no canal fiscal. No cadastro de produtos, um leitor USB/Bluetooth em modo teclado preenche o campo de código de barras e o SKU quando ele está vazio.
+
+A migração `202611190001_purchase_invoice_import` passa a exigir uma chave de acesso única por revenda. Se o banco já tiver compras com a mesma chave, revise os registros antes de aplicar a migração.
+
 Estoque físico, reservado e disponível são separados. Confirmação reserva; entrega/retirada baixa uma vez; recebimento não movimenta estoque. Dinheiro usa Decimal e `numeric`, com validação, transações e idempotência. Vendas antigas foram migradas como concluídas sem novas baixas.
 
 Leia o [guia de operação e sincronização](docs/OPERACAO_E_SINCRONIZACAO.md) para regras, preparação offline, conflitos, segurança e backup. A configuração fiscal está em [Focus NFe](COMO_CONFIGURAR_FOCUS.md); produção fiscal permanece bloqueada.

@@ -1,9 +1,31 @@
 'use client';
 import { OperationForm } from '@/components/operation-form';
 import { Field } from '@/components/ui';
-export function ProductForm() {
+export function ProductForm({
+  initialBarcode = '',
+}: { initialBarcode?: string } = {}) {
+  function fillSku(barcode: HTMLInputElement) {
+    const sku = barcode.form?.querySelector<HTMLInputElement>('[name="sku"]');
+    if (sku && !sku.value.trim()) sku.value = barcode.value.trim();
+  }
   return (
     <OperationForm operation="product" button="Cadastrar produto">
+      <Field
+        label="Código de barras (opcional)"
+        name="barcode"
+        defaultValue={initialBarcode}
+        maxLength={30}
+        placeholder="Passe o produto no leitor ou digite o código"
+        onBlur={(event) => fillSku(event.currentTarget)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          fillSku(event.currentTarget);
+          event.currentTarget.form
+            ?.querySelector<HTMLInputElement>('[name="name"]')
+            ?.focus();
+        }}
+      />
       <Field
         label="Nome do produto"
         name="name"
@@ -16,6 +38,7 @@ export function ProductForm() {
         <Field
           label="Código interno (SKU)"
           name="sku"
+          defaultValue={initialBarcode}
           required
           maxLength={50}
         />
@@ -60,11 +83,6 @@ export function ProductForm() {
             name="category"
             placeholder="Ex.: Perfumes"
             maxLength={80}
-          />
-          <Field
-            label="Código de barras (opcional)"
-            name="barcode"
-            maxLength={30}
           />
           <Field
             label="Descrição (opcional)"

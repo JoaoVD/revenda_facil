@@ -94,10 +94,12 @@ model Product {
   purchaseItems  PurchaseItem[]
   saleItems      SaleItem[]
   lots           StockLot[]
+  supplierCodes  SupplierProductCode[]
 
   @@unique([organizationId, sku])
   @@unique([organizationId, id])
   @@index([organizationId, active, name])
+  @@index([organizationId, barcode])
 }
 
 model Supplier {
@@ -131,7 +133,21 @@ model Purchase {
 
   @@unique([organizationId, idempotencyKey])
   @@unique([organizationId, id])
+  @@unique([organizationId, accessKey])
   @@index([organizationId, date])
+}
+
+model SupplierProductCode {
+  organizationId   String
+  supplierDocument String
+  code             String
+  unit             String
+  productId        String
+  unitsPerPackage  Int
+  product          Product @relation(fields: [organizationId, productId], references: [organizationId, id], onDelete: Cascade)
+
+  @@id([organizationId, supplierDocument, code, unit])
+  @@index([organizationId, productId])
 }
 
 model PurchaseItem {
