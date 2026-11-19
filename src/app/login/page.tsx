@@ -8,7 +8,7 @@ export default async function Login() {
       <section className="auth-story">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
-            <Leaf size={18} strokeWidth={1.8} />
+            <Leaf size={18} strokeWidth={2} />
           </span>
           Revenda Fácil
         </div>
