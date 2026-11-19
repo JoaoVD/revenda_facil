@@ -5,6 +5,8 @@ import { db } from '@/lib/db';
 import { brl, dateTime, D, monthRange } from '@/lib/money';
 import { Empty } from '@/components/ui';
 import { PurchaseForm, PaymentForm } from '@/components/domain-forms';
+import { PurchaseInvoiceForm } from './invoice-form';
+import { focusReceivedToken } from './focus-received';
 import { productOptions } from '@/modules/products/options';
 import {
   FilterBar,
@@ -124,13 +126,23 @@ export async function PurchasesView({ actor, query }: ViewProps) {
           ]}
         />
         <ActionDialog title="Receber mercadorias" trigger="Receber mercadorias">
-          {options.length ? (
-            <PurchaseForm products={options} />
-          ) : (
-            <Empty>
-              Primeiro, <Link href="/produtos">cadastre um produto</Link>.
-            </Empty>
-          )}
+          <div className="stack">
+            <PurchaseInvoiceForm
+              focusEnabled={Boolean(
+                focusReceivedToken(actor.organization.cnpj),
+              )}
+            />
+            <details className="ux-optional">
+              <summary>Registrar compra manualmente</summary>
+              {options.length ? (
+                <PurchaseForm products={options} />
+              ) : (
+                <Empty>
+                  Primeiro, <Link href="/produtos">cadastre um produto</Link>.
+                </Empty>
+              )}
+            </details>
+          </div>
         </ActionDialog>
       </div>
       {page.items.length ? (

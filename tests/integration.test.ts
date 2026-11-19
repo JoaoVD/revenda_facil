@@ -3,6 +3,15 @@ import { db } from '@/lib/db';
 import { createProduct, listProducts } from '@/modules/products/service';
 import { receivePurchase } from '@/modules/purchases/service';
 import {
+  confirmPurchaseInvoice,
+  previewPurchaseInvoice,
+} from '@/modules/purchases/invoice-service';
+import {
+  invoiceBarcode,
+  invoiceFixture,
+  invoiceRecipient,
+} from './fixtures/purchase-invoice';
+import {
   finalizeSale,
   cancelSale,
   completeOrder,
@@ -76,7 +85,7 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
         data: {
           name: `TEST ${crypto.randomUUID()}`,
           ownerName: 'Teste',
-          cnpj: crypto.randomUUID(),
+          cnpj: which === 'a' ? invoiceRecipient : crypto.randomUUID(),
           city: 'Monte Alto',
         },
       });
@@ -129,6 +138,137 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
     }
     await db.$disconnect();
   });
+  it('importa NF-e em lote, converte caixas, mantém os centavos e aprende o código do fornecedor', async () => {
+    const perfume = await createProduct(a, {
+      name: 'Perfume floral',
+      sku: 'perfume-nfe',
+      barcode: invoiceBarcode,
+      referenceCost: '20.00',
+      salePrice: '79.90',
+    });
+    const source = invoiceFixture();
+    const draft = await previewPurchaseInvoice(
+      a,
+      invoiceRecipient,
+      source.xml,
+      source.key,
+    );
+    expect(
+      draft.items.map((x) => [x.matchedProductId, x.unitsPerPackage]),
+    ).toEqual([
+      [perfume.id, 1],
+      ['', null],
+    ]);
+    const input = {
+      xml: source.xml,
+      expectedKey: source.key,
+      idempotencyKey: crypto.randomUUID(),
+      items: [
+        {
+          line: 1,
+          unitsPerPackage: 1,
+          product: { kind: 'existing', id: perfume.id },
+        },
+        {
+          line: 2,
+          unitsPerPackage: 6,
+          product: {
+            kind: 'new',
+            name: 'Sabonete unitário',
+            salePrice: '9.90',
+          },
+        },
+      ],
+    };
+    const purchase = await confirmPurchaseInvoice(a, invoiceRecipient, input);
+    expect((await confirmPurchaseInvoice(a, invoiceRecipient, input)).id).toBe(
+      purchase.id,
+    );
+    await expect(
+      confirmPurchaseInvoice(a, invoiceRecipient, {
+        ...input,
+        idempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toThrow('já deu entrada');
+    await expect(
+      receivePurchase(a, {
+        idempotencyKey: crypto.randomUUID(),
+        supplier: 'Fornecedor',
+        date: '2026-11-18',
+        accessKey: source.key,
+        items: [{ productId: perfume.id, quantity: 3, unitCost: '1' }],
+      }),
+    ).rejects.toThrow('já deu entrada');
+    const rows = await db.purchaseItem.findMany({
+      where: { purchaseId: purchase.id },
+      include: { product: true },
+      orderBy: { quantity: 'asc' },
+    });
+    expect(purchase.total.toFixed(2)).toBe('100.01');
+    expect(
+      rows.map((r) => [r.quantity, r.total.toFixed(2), r.product.stock]),
+    ).toEqual([
+      [3, '59.19', 3],
+      [12, '40.82', 12],
+    ]);
+    expect(rows[1].product.averageCost.toFixed(4)).toBe('3.4017');
+    expect(await db.payment.count({ where: { purchaseId: purchase.id } })).toBe(
+      0,
+    );
+    const next = await previewPurchaseInvoice(
+      a,
+      invoiceRecipient,
+      invoiceFixture(2).xml,
+    );
+    expect(next.items[1]).toMatchObject({
+      matchedProductId: rows[1].productId,
+      unitsPerPackage: 6,
+    });
+  });
+
+  it('reverte cadastro novo e entrada se uma linha aponta para outra revenda', async () => {
+    const foreign = await product(b);
+    const source = invoiceFixture(3);
+    await expect(
+      confirmPurchaseInvoice(a, invoiceRecipient, {
+        xml: source.xml.replace(invoiceBarcode, 'SEM GTIN'),
+        idempotencyKey: crypto.randomUUID(),
+        items: [
+          {
+            line: 1,
+            unitsPerPackage: 1,
+            product: {
+              kind: 'new',
+              name: 'Cadastro deve reverter',
+              salePrice: '30.00',
+            },
+          },
+          {
+            line: 2,
+            unitsPerPackage: 1,
+            product: { kind: 'existing', id: foreign.id },
+          },
+        ],
+      }),
+    ).rejects.toThrow('Produto não disponível');
+    expect(
+      await db.product.count({
+        where: {
+          organizationId: a.organizationId,
+          name: 'Cadastro deve reverter',
+        },
+      }),
+    ).toBe(0);
+    expect(
+      await db.purchase.count({
+        where: { organizationId: a.organizationId, accessKey: source.key },
+      }),
+    ).toBe(0);
+    expect(
+      (await db.product.findUniqueOrThrow({ where: { id: foreign.id } })).stock,
+    ).toBe(0);
+  });
+
   it('compra dez, vende duas, deixa oito e conserva custo e situação fiscal', async () => {
     const p = await product();
     await purchase(p.id);
