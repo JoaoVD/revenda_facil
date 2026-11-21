@@ -3,6 +3,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Plus, Minus, ShoppingCart, Trash2 } from 'lucide-react';
 import { operationAction } from '@/app/actions';
+import { communicationMessage, withDeadline } from '@/lib/deadline';
 import { D, brl, money } from '@/lib/money';
 import { CustomerPicker } from '@/modules/customers/customer-picker';
 import { Card, Field, Select, Empty } from '@/components/ui';
@@ -139,25 +140,34 @@ export function SalesTerminal({
               return;
             }
             start(async () => {
-              const result = await operationAction('sale', {
-                idempotencyKey: key,
-                customerId: customer || undefined,
-                newCustomer:
-                  !customer && customerName.trim()
-                    ? {
-                        id: quickCustomerId,
-                        name: customerName.trim(),
-                        phone: customerPhone.trim(),
-                      }
-                    : undefined,
-                discount: money(validAmount(discount)),
-                paid: money(validAmount(paid)),
-                method,
-                items: selected.map((p) => ({
-                  productId: p.id,
-                  quantity: cart[p.id],
-                })),
-              });
+              let result;
+              try {
+                result = await withDeadline(
+                  operationAction('sale', {
+                    idempotencyKey: key,
+                    customerId: customer || undefined,
+                    newCustomer:
+                      !customer && customerName.trim()
+                        ? {
+                            id: quickCustomerId,
+                            name: customerName.trim(),
+                            phone: customerPhone.trim(),
+                          }
+                        : undefined,
+                    discount: money(validAmount(discount)),
+                    paid: money(validAmount(paid)),
+                    method,
+                    items: selected.map((p) => ({
+                      productId: p.id,
+                      quantity: cart[p.id],
+                    })),
+                  }),
+                );
+              } catch (error) {
+                // Mesma chave de idempotência: reenviar não duplica a venda.
+                setMessage(communicationMessage(error, true));
+                return;
+              }
               setMessage(result.message);
               if (result.ok) {
                 setCart({});

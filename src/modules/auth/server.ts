@@ -8,12 +8,24 @@ export const authConfigured = () =>
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   );
+/**
+ * Supabase fora do ar não pode prender a página: cada chamada desiste em
+ * 10 s e cai no fluxo de erro/login em vez de carregar para sempre.
+ */
+export const supabaseFetch: typeof fetch = (input, init) =>
+  fetch(input, {
+    ...init,
+    signal: init?.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(10_000)])
+      : AbortSignal.timeout(10_000),
+  });
 export async function supabase() {
   const jar = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      global: { fetch: supabaseFetch },
       cookies: {
         getAll: () => jar.getAll(),
         setAll: (values) => {

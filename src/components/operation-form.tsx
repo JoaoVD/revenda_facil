@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState, useTransition, type ReactNode } from 'react';
 import { operationAction } from '@/app/actions';
+import { communicationMessage, withDeadline } from '@/lib/deadline';
 export function OperationForm({
   operation,
   children,
@@ -22,6 +23,7 @@ export function OperationForm({
   return (
     <form
       className="stack"
+      aria-busy={pending}
       onSubmit={(e) => {
         e.preventDefault();
         if (pending || running.current) return;
@@ -35,7 +37,9 @@ export function OperationForm({
               ? transform(data)
               : Object.fromEntries(data);
             sending = true;
-            const result = await operationAction(operation, payload);
+            const result = await withDeadline(
+              operationAction(operation, payload),
+            );
             setState(result);
             if (result.ok) {
               if (reset) form.reset();
@@ -48,7 +52,7 @@ export function OperationForm({
               message:
                 !sending && error instanceof Error
                   ? error.message
-                  : 'Não foi possível confirmar no servidor. O preenchimento foi mantido; confira a operação antes de tentar novamente.',
+                  : communicationMessage(error),
             });
           } finally {
             running.current = false;

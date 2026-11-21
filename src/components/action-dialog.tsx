@@ -21,16 +21,26 @@ export function ActionDialog({
   const opener = useRef<HTMLButtonElement>(null);
   const dirty = useRef(false);
   const [revision, setRevision] = useState(0);
+  /**
+   * Fechar nunca fica bloqueado. Com envio em andamento (`aria-busy`),
+   * só confirma: o servidor continua processando o que já foi enviado.
+   */
   function close() {
     const element = dialog.current;
+    if (!element) return;
+    const busy = element.querySelector('[aria-busy="true"]');
     if (
-      !element ||
-      element.querySelector(
-        'button[type="submit"]:disabled, form > button:disabled',
+      busy &&
+      !window.confirm(
+        'Ainda estamos salvando. Fechar mesmo assim? O que já foi enviado continua sendo processado.',
       )
     )
       return;
-    if (dirty.current && !window.confirm('Descartar as alterações não salvas?'))
+    if (
+      !busy &&
+      dirty.current &&
+      !window.confirm('Descartar as alterações não salvas?')
+    )
       return;
     element.close();
   }
