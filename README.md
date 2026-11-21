@@ -63,6 +63,8 @@ Sem nenhum serviço externo, a chave da nota pode ser lida pelo código de barra
 
 Para **Buscar nota** automaticamente pela chave, sem o XML, configure no servidor `FOCUS_RECEIVED_CNPJ` e `FOCUS_RECEIVED_TOKEN` da empresa com NF-e recebidas habilitada na [Focus NFe](https://doc.focusnfe.com.br/reference/nfe-recebidas). A aplicação consulta e baixa notas completas em modo somente leitura. Se a nota ainda estiver disponível apenas como resumo, use o XML original enviado pelo fornecedor ou confira a manifestação no canal fiscal. No cadastro de produtos, um leitor USB/Bluetooth em modo teclado ou o botão **Ler código com a câmera** preenche o código de barras e o SKU quando ele está vazio.
 
+**Entrar com usuário:** a tela de entrada aceita nome de usuário ou e-mail. O usuário é escolhido no cadastro (junto com o e-mail) ou em **Configurações → Acesso** para contas existentes. O sistema guarda o vínculo usuário → e-mail na tabela `UserLogin` e confere a senha no Supabase Auth com o e-mail; usuário inexistente recebe a mesma mensagem de senha errada. Aplique a migração `202611210001_username_login` (`npm run db:migrate`) antes de publicar esta versão.
+
 A migração `202611190001_purchase_invoice_import` passa a exigir uma chave de acesso única por revenda. Se o banco já tiver compras com a mesma chave, revise os registros antes de aplicar a migração.
 
 Estoque físico, reservado e disponível são separados. Confirmação reserva; entrega/retirada baixa uma vez; recebimento não movimenta estoque. Dinheiro usa Decimal e `numeric`, com validação, transações e idempotência. Vendas antigas foram migradas como concluídas sem novas baixas.
