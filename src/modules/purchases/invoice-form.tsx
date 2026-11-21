@@ -2,15 +2,17 @@
 
 import { useRef, useState } from 'react';
 import { Barcode, FileUp } from 'lucide-react';
+import { CameraScanButton } from '@/components/camera-scanner';
 import { Field, Select } from '@/components/ui';
 import { brl, D } from '@/lib/money';
 import {
   MAX_XML_BYTES,
-  validNfeKey,
   type InvoiceDraft,
   type InvoiceSelection,
 } from './invoice-contracts';
+import { describeNfeKey, extractNfeKey } from './nfe-key';
 import {
+  checkPurchaseInvoiceKey,
   loadPurchaseInvoice,
   registerPurchaseInvoice,
   searchPurchaseProducts,
@@ -30,6 +32,8 @@ export function PurchaseInvoiceForm({
   focusEnabled: boolean;
 }) {
   const [accessKey, setAccessKey] = useState('');
+  /** Chave lida no DANFE, aguardando o XML (sem Focus). */
+  const [scannedKey, setScannedKey] = useState<string>();
   const [loaded, setLoaded] = useState<LoadedInvoice>();
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
   const [busy, setBusy] = useState(false);
@@ -54,57 +58,124 @@ export function PurchaseInvoiceForm({
   }
 
   async function load(source: 'xml' | 'key', value: string) {
-    const result = await loadPurchaseInvoice(source, value);
+    const result = await loadPurchaseInvoice(source, value, scannedKey);
     if (!result.ok) {
       setMessage({ ok: false, text: result.message });
       return;
     }
     setLoaded({
       ...result,
-      ...(source === 'key' ? { expectedKey: result.draft.accessKey } : {}),
+      ...(source === 'key' || scannedKey
+        ? { expectedKey: result.draft.accessKey }
+        : {}),
       idempotencyKey: crypto.randomUUID(),
     });
   }
+
+  /** Leitor USB, câmera ou digitação: identifica a nota pela chave. */
+  function identifyKey(text: string) {
+    const key = extractNfeKey(text);
+    if (!key) {
+      setMessage({
+        ok: false,
+        text: 'Não reconheci a chave da NF-e. Confira os 44 dígitos do DANFE.',
+      });
+      return;
+    }
+    setAccessKey(key);
+    void run(async () => {
+      if (focusEnabled) return load('key', key);
+      const check = await checkPurchaseInvoiceKey(key);
+      if (!check.ok) {
+        setMessage({ ok: false, text: check.message ?? '' });
+        return;
+      }
+      setScannedKey(key);
+    });
+  }
+
+  const details = scannedKey && describeNfeKey(scannedKey);
 
   return (
     <div className="stack">
       {!loaded ? (
         <>
-          {focusEnabled && (
+          {!details ? (
             <form
               className="stack"
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(() => load('key', accessKey.replace(/\s/g, '')));
+                identifyKey(accessKey);
               }}
             >
               <Field
-                label="Escanear código do DANFE"
+                label="Chave da nota (código de barras do DANFE)"
                 inputMode="numeric"
-                maxLength={80}
+                autoComplete="off"
+                maxLength={300}
                 value={accessKey}
-                onChange={(event) => setAccessKey(event.target.value)}
-                placeholder="Passe no leitor ou cole a chave de 44 dígitos"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setAccessKey(value);
+                  // Leitores sem Enter no final: a chave completa já basta.
+                  if (!busy && extractNfeKey(value)) identifyKey(value);
+                }}
+                placeholder="Passe no leitor ou digite os 44 dígitos"
               />
-              <button
-                type="submit"
-                className="button secondary"
-                disabled={busy || !validNfeKey(accessKey.replace(/\s/g, ''))}
-              >
-                <Barcode size={18} aria-hidden /> Buscar nota
-              </button>
+              <div className="ux-actions">
+                <button
+                  type="submit"
+                  className="button"
+                  disabled={busy || !extractNfeKey(accessKey)}
+                >
+                  <Barcode size={18} aria-hidden />
+                  {focusEnabled ? 'Buscar nota' : 'Identificar nota'}
+                </button>
+                <CameraScanButton
+                  kind="invoice"
+                  title="Ler código da nota"
+                  accept={(value) => extractNfeKey(value) !== null}
+                  onDetected={identifyKey}
+                />
+              </div>
+              {!focusEnabled && (
+                <p className="hint">
+                  O código identifica a nota; os produtos vêm do XML, que o
+                  fornecedor envia por e-mail ou deixa no portal. Nenhum serviço
+                  externo é usado.
+                </p>
+              )}
             </form>
-          )}
-          {!focusEnabled && (
-            <p className="hint">
-              Use o XML recebido do fornecedor. A busca pelo DANFE fica
-              disponível quando a Focus estiver configurada.
-            </p>
+          ) : (
+            <div className="notice">
+              <strong>Nota identificada</strong>
+              <p>
+                NF-e nº {details.number}, série {details.series}, emitida em{' '}
+                {details.issued} ({details.state})
+                <br />
+                Fornecedor: CNPJ {details.supplierDocument}
+              </p>
+              <p className="hint wrap-anywhere">{scannedKey}</p>
+              <button
+                type="button"
+                className="small-button"
+                disabled={busy}
+                onClick={() => {
+                  setScannedKey(undefined);
+                  setAccessKey('');
+                  setMessage(undefined);
+                }}
+              >
+                Ler outra nota
+              </button>
+            </div>
           )}
           <label className="field">
             <span>
               <FileUp size={17} aria-hidden className="inline mr-2" />
-              Importar XML da NF-e
+              {details
+                ? 'Agora importe o XML desta nota'
+                : 'Importar XML da NF-e'}
             </span>
             <input
               type="file"
@@ -164,6 +235,7 @@ export function PurchaseInvoiceForm({
               if (result.ok) {
                 setLoaded(undefined);
                 setAccessKey('');
+                setScannedKey(undefined);
               }
             })
           }
@@ -361,17 +433,34 @@ function InvoiceReview({
                 : 'Informe a conversão para ver a entrada no estoque.'}
             </p>
             {matches[index] === NEW && (
-              <div className="form-grid">
+              <div className="stack">
+                <strong>Cadastro com os dados da nota</strong>
                 <Field
-                  label="Nome para o catálogo"
+                  label="Nome do produto"
                   name={'name-' + item.line}
                   defaultValue={item.name}
                   required
                   minLength={2}
                   maxLength={120}
                 />
+                <dl className="item-facts">
+                  <div>
+                    <dt>Quantidade que entra</dt>
+                    <dd>{units?.gt(0) ? units.toString() + ' un.' : '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Custo por unidade</dt>
+                    <dd>
+                      {units?.gt(0) ? brl(D(item.lineCost).div(units)) : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Custo total na nota</dt>
+                    <dd>{brl(item.lineCost)}</dd>
+                  </div>
+                </dl>
                 <Field
-                  label="Preço de venda (R$)"
+                  label="Preço de revenda (R$), definido por você"
                   name={'price-' + item.line}
                   type="number"
                   min="0"

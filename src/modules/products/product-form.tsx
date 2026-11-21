@@ -1,31 +1,51 @@
 'use client';
+import { useRef } from 'react';
+import { CameraScanButton } from '@/components/camera-scanner';
 import { OperationForm } from '@/components/operation-form';
 import { Field } from '@/components/ui';
 export function ProductForm({
   initialBarcode = '',
 }: { initialBarcode?: string } = {}) {
+  const barcodeArea = useRef<HTMLDivElement>(null);
   function fillSku(barcode: HTMLInputElement) {
     const sku = barcode.form?.querySelector<HTMLInputElement>('[name="sku"]');
     if (sku && !sku.value.trim()) sku.value = barcode.value.trim();
   }
+  /** Código lido pela câmera: preenche como se viesse do leitor USB. */
+  function applyScanned(value: string) {
+    const input =
+      barcodeArea.current?.querySelector<HTMLInputElement>('[name="barcode"]');
+    if (!input) return;
+    input.value = value.trim().slice(0, 30);
+    fillSku(input);
+    input.form?.querySelector<HTMLInputElement>('[name="name"]')?.focus();
+  }
   return (
     <OperationForm operation="product" button="Cadastrar produto">
-      <Field
-        label="Código de barras (opcional)"
-        name="barcode"
-        defaultValue={initialBarcode}
-        maxLength={30}
-        placeholder="Passe o produto no leitor ou digite o código"
-        onBlur={(event) => fillSku(event.currentTarget)}
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter') return;
-          event.preventDefault();
-          fillSku(event.currentTarget);
-          event.currentTarget.form
-            ?.querySelector<HTMLInputElement>('[name="name"]')
-            ?.focus();
-        }}
-      />
+      <div className="stack" ref={barcodeArea}>
+        <Field
+          label="Código de barras (opcional)"
+          name="barcode"
+          defaultValue={initialBarcode}
+          maxLength={30}
+          placeholder="Passe o produto no leitor ou digite o código"
+          onBlur={(event) => fillSku(event.currentTarget)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            fillSku(event.currentTarget);
+            event.currentTarget.form
+              ?.querySelector<HTMLInputElement>('[name="name"]')
+              ?.focus();
+          }}
+        />
+        <CameraScanButton
+          kind="product"
+          label="Ler código com a câmera"
+          title="Ler código do produto"
+          onDetected={applyScanned}
+        />
+      </div>
       <Field
         label="Nome do produto"
         name="name"
