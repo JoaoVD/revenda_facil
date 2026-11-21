@@ -17,7 +17,7 @@ const statusLabel: Record<string, string> = {
 export async function SalesView({ actor, query }: ViewProps) {
   const organizationId = actor.organizationId;
   const skip = (query.page - 1) * 25;
-  const options = await productOptions(actor);
+  const options = await productOptions(actor, { forSale: true });
   const [customers, sales] = await Promise.all([
     db.customer.findMany({
       where: { organizationId, active: true },

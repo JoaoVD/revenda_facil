@@ -42,7 +42,11 @@ const selection = z.object({
     z.object({
       kind: z.literal('new'),
       name: z.string().trim().min(2).max(120),
-      salePrice: amount,
+      // Opcional: sem preço, o produto fica fora das vendas até ser editado.
+      salePrice: z
+        .union([amount, z.literal('')])
+        .optional()
+        .transform((value) => value || '0'),
     }),
   ]),
 });

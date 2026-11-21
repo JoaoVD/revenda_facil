@@ -19,6 +19,15 @@ export const productInput = z.object({
   salePrice: amount,
   minimumStock: z.coerce.number().int().min(0).max(1000000).default(0),
 });
+/** Edição: mesmos campos do cadastro, mais o vínculo e a situação. */
+export const productUpdateInput = productInput.extend({
+  id,
+  // Checkbox do formulário: presente ("on") = ativo.
+  active: z.preprocess(
+    (value) => value === true || value === 'on' || value === 'true',
+    z.boolean(),
+  ),
+});
 export const purchaseInput = z.object({
   idempotencyKey: key,
   supplier: z.string().trim().min(2).max(120),

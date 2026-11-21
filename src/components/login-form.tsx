@@ -11,16 +11,43 @@ export function LoginForm({ configured }: { configured: boolean }) {
   return (
     <form action={action} className="stack">
       <input type="hidden" name="mode" value={signup ? 'signup' : 'login'} />
-      <Field
-        label="Seu e-mail"
-        name="email"
-        type="email"
-        autoComplete="username"
-        autoCapitalize="none"
-        spellCheck={false}
-        maxLength={254}
-        required
-      />
+      {signup ? (
+        <>
+          <Field
+            label="Nome de usuário"
+            name="username"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            minLength={3}
+            maxLength={30}
+            pattern="[A-Za-z0-9][A-Za-z0-9._\-]{2,29}"
+            title="De 3 a 30 letras, números, ponto, hífen ou sublinhado, sem espaços nem acentos."
+            placeholder="Ex.: ana.cosmeticos"
+            required
+          />
+          <Field
+            label="Seu e-mail"
+            name="email"
+            type="email"
+            autoComplete="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={254}
+            required
+          />
+        </>
+      ) : (
+        <Field
+          label="Usuário ou e-mail"
+          name="login"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          maxLength={254}
+          required
+        />
+      )}
       <Field
         label="Senha"
         name="password"

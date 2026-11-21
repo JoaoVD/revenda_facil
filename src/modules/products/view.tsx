@@ -4,6 +4,7 @@ import { listProducts } from '@/modules/products/service';
 import { brl } from '@/lib/money';
 import { Card, Table, Empty } from '@/components/ui';
 import { ProductForm } from '@/components/domain-forms';
+import { D } from '@/lib/money';
 export async function ProductsView({ actor, query }: ViewProps) {
   const search = (query.q || '').trim().slice(0, 120);
   const products = await listProducts(actor, search);
@@ -28,7 +29,7 @@ export async function ProductsView({ actor, query }: ViewProps) {
           <button className="small-button">Buscar</button>
         </form>
         {products.length ? (
-          <Table headers={['Produto', 'Código', 'Preço', 'Estoque']}>
+          <Table headers={['Produto', 'Código', 'Preço', 'Estoque', '']}>
             {products.map((p) => (
               <tr key={p.id}>
                 <td>
@@ -44,8 +45,43 @@ export async function ProductsView({ actor, query }: ViewProps) {
                     <small>{p.barcode}</small>
                   )}
                 </td>
-                <td>{brl(p.salePrice.toString())}</td>
+                <td>
+                  {D(p.salePrice.toString()).gt(0) ? (
+                    brl(p.salePrice.toString())
+                  ) : (
+                    <span className="badge badge--neutral">Sem preço</span>
+                  )}
+                  {!p.active && (
+                    <small>
+                      <span className="badge">Inativo</span>
+                    </small>
+                  )}
+                </td>
                 <td>{p.stock}</td>
+                <td>
+                  <ActionDialog
+                    title={`Editar ${p.name}`}
+                    trigger="Editar"
+                    triggerLabel={`Editar ${p.name}`}
+                    triggerClassName="small-button"
+                  >
+                    <ProductForm
+                      product={{
+                        id: p.id,
+                        name: p.name,
+                        sku: p.sku,
+                        barcode: p.barcode ?? '',
+                        brand: p.brand?.name ?? '',
+                        category: p.category?.name ?? '',
+                        description: p.description ?? '',
+                        referenceCost: D(p.referenceCost.toString()).toFixed(2),
+                        salePrice: D(p.salePrice.toString()).toFixed(2),
+                        minimumStock: p.minimumStock,
+                        active: p.active,
+                      }}
+                    />
+                  </ActionDialog>
+                </td>
               </tr>
             ))}
           </Table>

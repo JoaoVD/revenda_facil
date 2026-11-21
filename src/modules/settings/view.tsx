@@ -5,11 +5,17 @@ import { FiscalConfiguration } from '@/modules/fiscal/configuration-view';
 import { db } from '@/lib/db';
 import { ReminderSettings } from '@/modules/reminders/forms';
 import { PushSettings } from '@/modules/reminders/push-settings';
+import { requireUser } from '@/modules/auth/server';
+import { UsernameForm } from './username-form';
 export async function SettingsView({ actor }: ViewProps) {
   const org = actor.organization;
-  const reminder = await db.reminderPreference.findUnique({
-    where: { organizationId: actor.organizationId },
-  });
+  const [reminder, user, login] = await Promise.all([
+    db.reminderPreference.findUnique({
+      where: { organizationId: actor.organizationId },
+    }),
+    requireUser(),
+    db.userLogin.findUnique({ where: { userId: actor.userId } }),
+  ]);
   return (
     <>
       <div className="split-layout">
@@ -45,6 +51,13 @@ export async function SettingsView({ actor }: ViewProps) {
           </p>
         </Card>
       </div>
+      <Card>
+        <h2 id="acesso">Acesso</h2>
+        <UsernameForm
+          current={login?.username ?? ''}
+          email={user.email ?? ''}
+        />
+      </Card>
       <section id="fiscal">
         <FiscalConfiguration actor={actor} />
       </section>

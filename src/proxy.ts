@@ -6,6 +6,16 @@ export async function proxy(request: NextRequest) {
     key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return response;
   const client = createServerClient(url, key, {
+    // Mesmo limite do servidor (sem importar next/headers no proxy).
+    global: {
+      fetch: (input, init) =>
+        fetch(input, {
+          ...init,
+          signal: init?.signal
+            ? AbortSignal.any([init.signal, AbortSignal.timeout(8_000)])
+            : AbortSignal.timeout(8_000),
+        }),
+    },
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (values) => {
@@ -17,7 +27,9 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await client.auth.getUser();
+  // Só renova cookies. Se o Supabase falhar ou demorar, a página segue e a
+  // própria rota decide (ex.: levar ao login) em vez de travar aqui.
+  await client.auth.getUser().catch(() => undefined);
   return response;
 }
 export const config = {

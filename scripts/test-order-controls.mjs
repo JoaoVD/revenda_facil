@@ -109,7 +109,8 @@ try {
         await button.click();
         await page
           .getByRole('status')
-          .filter({ hasText: 'Não foi possível confirmar' })
+          // Falha de transporte: mensagem clara e preenchimento mantido.
+          .filter({ hasText: 'Sem conexão com o servidor' })
           .waitFor();
         assert.equal(
           await page.getByLabel('Quantidade de Perfume TEST').inputValue(),

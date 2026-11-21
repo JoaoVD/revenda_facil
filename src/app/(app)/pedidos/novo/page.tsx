@@ -6,7 +6,7 @@ import { OrderWizard } from '@/modules/orders/order-wizard';
 export default async function NewOrder() {
   const actor = await requireActor();
   const [products, customers] = await Promise.all([
-    productOptions(actor),
+    productOptions(actor, { forSale: true }),
     db.customer.findMany({
       where: { organizationId: actor.organizationId, active: true },
       select: { id: true, name: true, phone: true },

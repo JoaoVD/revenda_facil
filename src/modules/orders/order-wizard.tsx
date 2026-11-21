@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Package, Plus, Minus, ArrowLeft } from 'lucide-react';
 import Image from 'next/image';
 import { operationAction, type Result } from '@/app/actions';
+import { communicationMessage, withDeadline } from '@/lib/deadline';
 import { Field, Card, ChoiceGroup } from '@/components/ui';
 import { brl, D } from '@/lib/money';
 import {
@@ -248,9 +249,9 @@ export function OrderWizard({
           items: items.map((p) => ({ productId: p.id, quantity: cart[p.id] })),
         };
         if (scope && !draft.submission) await draft.saveSubmission(payload);
-        const result = commit
-          ? await commit(payload)
-          : await operationAction('sale', payload);
+        const result = await withDeadline(
+          commit ? commit(payload) : operationAction('sale', payload),
+        );
         if (result.ok && result.id) {
           await draft.complete().catch(() => undefined);
           if (onConfirmed) onConfirmed(result.id);
@@ -258,10 +259,9 @@ export function OrderWizard({
             router.push(`/pedidos/${result.id}`);
           }
         } else setMessage(result.message);
-      } catch {
-        setMessage(
-          'Não foi possível confirmar no servidor. Seu preenchimento foi mantido; tente novamente.',
-        );
+      } catch (error) {
+        // O pedido guarda a mesma chave: reenviar não duplica.
+        setMessage(communicationMessage(error, true));
       } finally {
         submitting.current = false;
       }
@@ -325,9 +325,11 @@ export function OrderWizard({
                           else router.push('/operacao');
                           return;
                         }
-                        const result = await operationAction('draft-status', {
-                          idempotencyKey: draft.id,
-                        });
+                        const result = await withDeadline(
+                          operationAction('draft-status', {
+                            idempotencyKey: draft.id,
+                          }),
+                        );
                         if (!result.ok) {
                           setMessage(result.message);
                           return;

@@ -109,8 +109,19 @@ try {
       '7894900011517',
     );
     assert.equal(await page.evaluate(() => window.productSubmitted), undefined);
+    // Defeito relatado: com o campo da chave vazio, "Fechar" não fechava.
     await page.getByRole('button', { name: 'Receber mercadorias' }).click();
     const dialog = page.getByRole('dialog', { name: 'Receber mercadorias' });
+    await dialog.waitFor();
+    await dialog
+      .getByRole('button', { name: 'Fechar Receber mercadorias' })
+      .click();
+    await dialog.waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: 'Receber mercadorias' }).click();
+    await dialog.waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: 'Receber mercadorias' }).click();
     if (width === 1280) {
       const key = await page.evaluate(() => window.data.key);
       const field = page.getByLabel(
@@ -141,9 +152,7 @@ try {
     await facts.getByText('12 un.').waitFor();
     await facts.getByText(/R\$\s*3,40/).waitFor();
     await facts.getByText(/R\$\s*40,82/).waitFor();
-    const resale = dialog.getByLabel(
-      'Preço de revenda (R$), definido por você',
-    );
+    const resale = dialog.getByLabel('Preço de revenda (R$), opcional');
     assert.equal(await resale.inputValue(), '');
     await resale.fill('9.90');
     await page.getByText('Entrada de 12 un.', { exact: false }).waitFor();

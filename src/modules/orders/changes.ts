@@ -102,6 +102,10 @@ export async function editOrder(actor: Actor, raw: unknown) {
         throw new BusinessError(
           'Produto indisponível para acrescentar ao pedido.',
         );
+      if (!old && !product.salePrice.gt(0))
+        throw new BusinessError(
+          `Defina o preço de revenda de ${product.name} em Produtos antes de vender.`,
+        );
       const price = old?.unitPrice || product.salePrice,
         cost = old?.unitCost || product.averageCost;
       return {

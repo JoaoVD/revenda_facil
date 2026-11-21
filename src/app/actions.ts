@@ -10,7 +10,14 @@ import {
   authConfigured,
 } from '@/modules/auth/server';
 import { organizationInput } from '@/modules/organizations/validation';
-import { createProduct } from '@/modules/products/service';
+import {
+  emailForLogin,
+  saveUsername,
+  syncLogin,
+  username,
+  usernameAvailable,
+} from '@/modules/auth/username';
+import { createProduct, updateProduct } from '@/modules/products/service';
 import { receivePurchase } from '@/modules/purchases/service';
 import {
   finalizeSale,
@@ -36,42 +43,97 @@ import {
   saveFiscalCustomer,
 } from '@/modules/fiscal/configuration';
 export type Result = { ok: boolean; message: string; id?: string };
+const loginFailure = {
+  ok: false,
+  message: 'Não foi possível entrar. Confira seu usuário e senha.',
+};
 export async function loginAction(_: Result, form: FormData): Promise<Result> {
   if (!authConfigured())
     return {
       ok: false,
       message: 'Configure o Supabase no servidor para habilitar o acesso.',
     };
-  const input = z
-    .object({ email: z.email(), password: z.string().min(8).max(128) })
-    .safeParse(Object.fromEntries(form));
-  if (!input.success)
-    return {
-      ok: false,
-      message: 'Informe e-mail e senha válida (mínimo 8 caracteres).',
-    };
+  const password = z.string().min(8).max(128).safeParse(form.get('password'));
+  if (!password.success)
+    return { ok: false, message: 'Informe a senha (mínimo 8 caracteres).' };
   const client = await supabase();
   if (form.get('mode') === 'signup') {
-    const { error } = await client.auth.signUp({
-      ...input.data,
+    const input = z
+      .object({ email: z.email(), username })
+      .safeParse({ email: form.get('email'), username: form.get('username') });
+    if (!input.success)
+      return {
+        ok: false,
+        message:
+          input.error.issues[0]?.path[0] === 'username'
+            ? 'Nome de usuário: use de 3 a 30 letras, números, ponto, hífen ou sublinhado.'
+            : 'Informe um e-mail válido.',
+      };
+    if (!(await usernameAvailable(input.data.username)))
+      return { ok: false, message: 'Esse nome de usuário já está em uso.' };
+    const { data, error } = await client.auth.signUp({
+      email: input.data.email,
+      password: password.data,
       options: {
         emailRedirectTo: `${process.env.APP_URL || 'http://localhost:3000'}/login`,
+        // Reserva para criar o vínculo no primeiro login, se faltar.
+        data: { username: input.data.username },
       },
     });
+    // E-mail já cadastrado: o Supabase devolve usuário sem identidades.
+    // Não vincula o usuário a uma conta que não é de quem está cadastrando.
+    if (!error && data.user?.identities?.length)
+      await saveUsername(
+        data.user.id,
+        input.data.email,
+        input.data.username,
+      ).catch(() => {});
     return {
       ok: !error,
       message: error
         ? 'Não foi possível criar a conta. Verifique os dados e tente novamente.'
-        : 'Conta solicitada. Confirme seu e-mail e depois entre com sua senha.',
+        : 'Conta solicitada. Confirme seu e-mail e depois entre com seu usuário e senha.',
     };
   }
-  const { error } = await client.auth.signInWithPassword(input.data);
-  if (error)
+  const email = await emailForLogin(String(form.get('login') ?? ''));
+  if (!email) return loginFailure;
+  const { data, error } = await client.auth.signInWithPassword({
+    email,
+    password: password.data,
+  });
+  if (error || !data.user) return loginFailure;
+  await syncLogin(data.user).catch(() => {
+    // O vínculo é conveniência: falha aqui não impede a entrada.
+  });
+  redirect('/');
+}
+/** Define o nome de usuário da conta logada (Configurações). */
+export async function usernameAction(
+  _: Result,
+  form: FormData,
+): Promise<Result> {
+  const user = await requireUser();
+  try {
+    if (!user.email) throw new BusinessError('Conta sem e-mail cadastrado.');
+    const saved = await saveUsername(
+      user.id,
+      user.email,
+      String(form.get('username') ?? ''),
+    );
+    revalidatePath('/configuracoes');
+    return {
+      ok: true,
+      message: `Pronto. Agora você pode entrar com o usuário ${saved.username}.`,
+    };
+  } catch (error) {
     return {
       ok: false,
-      message: 'Não foi possível entrar. Confira seu e-mail e senha.',
+      message:
+        error instanceof z.ZodError
+          ? (error.issues[0]?.message ?? 'Nome de usuário inválido.')
+          : publicError(error),
     };
-  redirect('/');
+  }
 }
 export async function logoutAction() {
   const client = await supabase();
@@ -150,6 +212,9 @@ export async function operationAction(
       }
       case 'product':
         await createProduct(actor, raw);
+        break;
+      case 'product-edit':
+        await updateProduct(actor, raw);
         break;
       case 'purchase':
         await receivePurchase(actor, raw);

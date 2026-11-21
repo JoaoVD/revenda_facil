@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Barcode, FileUp } from 'lucide-react';
 import { CameraScanButton } from '@/components/camera-scanner';
+import { communicationMessage, withDeadline } from '@/lib/deadline';
 import { Field, Select } from '@/components/ui';
 import { brl, D } from '@/lib/money';
 import {
@@ -26,6 +27,9 @@ type LoadedInvoice = {
 };
 const NEW = 'new';
 
+/** Arquivo ilegível: problema do arquivo, não da conexão. */
+class FileReadError extends Error {}
+
 export function PurchaseInvoiceForm({
   focusEnabled,
 }: {
@@ -45,11 +49,14 @@ export function PurchaseInvoiceForm({
     setBusy(true);
     setMessage(undefined);
     try {
-      await work();
-    } catch {
+      await withDeadline(work());
+    } catch (error) {
       setMessage({
         ok: false,
-        text: 'Não foi possível concluir. Confira o arquivo ou a conexão e tente novamente.',
+        text:
+          error instanceof FileReadError
+            ? error.message
+            : communicationMessage(error, true),
       });
     } finally {
       working.current = false;
@@ -97,7 +104,7 @@ export function PurchaseInvoiceForm({
   const details = scannedKey && describeNfeKey(scannedKey);
 
   return (
-    <div className="stack">
+    <div className="stack" aria-busy={busy}>
       {!loaded ? (
         <>
           {!details ? (
@@ -193,17 +200,26 @@ export function PurchaseInvoiceForm({
                       });
                       return;
                     }
-                    const bytes = await file.arrayBuffer();
-                    const header = new TextDecoder().decode(
-                      bytes.slice(0, 200),
-                    );
-                    const encoding =
-                      /encoding=["'](ISO-8859-1|windows-1252)["']/i.test(header)
-                        ? 'windows-1252'
-                        : 'utf-8';
-                    const xml = new TextDecoder(encoding, {
-                      fatal: true,
-                    }).decode(bytes);
+                    let xml: string;
+                    try {
+                      const bytes = await file.arrayBuffer();
+                      const header = new TextDecoder().decode(
+                        bytes.slice(0, 200),
+                      );
+                      const encoding =
+                        /encoding=["'](ISO-8859-1|windows-1252)["']/i.test(
+                          header,
+                        )
+                          ? 'windows-1252'
+                          : 'utf-8';
+                      xml = new TextDecoder(encoding, {
+                        fatal: true,
+                      }).decode(bytes);
+                    } catch {
+                      throw new FileReadError(
+                        'Não foi possível ler o arquivo. Confira se é o XML da NF-e.',
+                      );
+                    }
                     await load('xml', xml);
                   });
               }}
@@ -460,14 +476,17 @@ function InvoiceReview({
                   </div>
                 </dl>
                 <Field
-                  label="Preço de revenda (R$), definido por você"
+                  label="Preço de revenda (R$), opcional"
                   name={'price-' + item.line}
                   type="number"
-                  min="0"
+                  min="0.01"
                   max="9999999999.99"
                   step="0.01"
-                  required
                 />
+                <p className="hint">
+                  Pode deixar em branco e definir depois em Produtos → Editar.
+                  Sem preço, o produto não aparece nas vendas e pedidos.
+                </p>
               </div>
             )}
           </fieldset>

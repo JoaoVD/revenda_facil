@@ -46,17 +46,29 @@ try {
         .click();
     const input = page.locator('input:not([type=hidden])').first();
     await input.waitFor();
-    assert.equal(await input.getAttribute('name'), 'email');
-    await input.fill('test@example.com');
+    const valid = (locator) => locator.evaluate((el) => el.checkValidity());
+    if (mode === 'signup') {
+      // Cadastro: nome de usuário + e-mail + senha.
+      assert.equal(await input.getAttribute('name'), 'username');
+      const email = page.locator('input[name=email]');
+      await input.fill('ana cosméticos');
+      assert.equal(await valid(input), false, 'username without spaces');
+      await input.fill('ana.cosmeticos');
+      assert.equal(await valid(input), true);
+      await email.fill('invalid-email');
+      assert.equal(await valid(email), false);
+      await email.fill('test@example.com');
+    } else {
+      // Entrada: um único campo aceita usuário ou e-mail.
+      assert.equal(await input.getAttribute('name'), 'login');
+      assert.equal(await page.getByLabel('Usuário ou e-mail').count(), 1);
+      assert.equal(await page.locator('input[name=email]').count(), 0);
+      await input.fill('test@example.com');
+      assert.equal(await valid(input), true, 'email still accepted');
+      await input.fill('ana.cosmeticos');
+      assert.equal(await valid(input), true, 'username accepted');
+    }
     await page.locator('input[type=password]').fill('temporary-test-password');
-    assert.equal(
-      await input.evaluate((el) => el.checkValidity()),
-      true,
-      `valid identifier in ${mode}`,
-    );
-    await input.fill('invalid-email');
-    assert.equal(await input.evaluate((el) => el.checkValidity()), false);
-    await input.fill('test@example.com');
     if (mode === 'unconfigured') {
       assert.equal(await page.locator('button.button').isDisabled(), true);
       await page.close();
@@ -67,6 +79,17 @@ try {
     assert.equal(
       await page.evaluate(() => window.submitted.mode),
       mode === 'signup' ? 'signup' : 'login',
+    );
+    assert.deepEqual(
+      await page.evaluate(() => {
+        const fields = { ...window.submitted };
+        delete fields.mode;
+        delete fields.password;
+        return fields;
+      }),
+      mode === 'signup'
+        ? { username: 'ana.cosmeticos', email: 'test@example.com' }
+        : { login: 'ana.cosmeticos' },
     );
     assert.equal(
       await page
@@ -82,7 +105,7 @@ try {
     await page.close();
   }
   console.log(
-    'SaaS login/signup and disabled access without Supabase configuration passed. Browser validation and submitted mode checked; server action simulated.',
+    'SaaS login (usuário ou e-mail)/signup (usuário + e-mail) and disabled access without Supabase configuration passed. Browser validation and submitted mode checked; server action simulated.',
   );
 } finally {
   await browser.close();
