@@ -1,7 +1,7 @@
 {
   "name": "revenda-facil",
   "version": "1.0.0",
-  "description": "Gest\u00e3o simples e transacional para revendedoras independentes",
+  "description": "Gestão simples e transacional para revendedoras independentes",
   "scripts": {
     "push:keys": "web-push generate-vapid-keys",
     "test:push:browser": "node scripts/test-push-ux.mjs",
@@ -31,6 +31,8 @@
     "@prisma/client": "^6.19.3",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
+    "@zxing/browser": "0.2.1",
+    "@zxing/library": "0.23.0",
     "clsx": "^2.1.1",
     "decimal.js": "^10.6.0",
     "lucide-react": "^1.66.0",

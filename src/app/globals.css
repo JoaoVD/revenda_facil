@@ -1319,6 +1319,32 @@ td small {
   margin-top: 8px;
 }
 
+/* Leitor de códigos pela câmera */
+.scanner-frame {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  margin-bottom: 12px;
+  border-radius: var(--r-lg);
+  background: #000;
+}
+.scanner-frame video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.scanner-guide {
+  position: absolute;
+  inset: 30% 8%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: var(--r-md);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35);
+}
+/* Código da nota é largo e baixo; QR e produto pedem área mais quadrada. */
+.scanner-frame[data-kind='product'] .scanner-guide {
+  inset: 22% 14%;
+}
+
 /* Aviso de lembrete */
 .reminder-banner {
   margin-bottom: 20px;
