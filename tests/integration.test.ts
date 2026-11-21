@@ -1,6 +1,10 @@
 import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import { db } from '@/lib/db';
-import { createProduct, listProducts } from '@/modules/products/service';
+import {
+  createProduct,
+  listProducts,
+  updateProduct,
+} from '@/modules/products/service';
 import { receivePurchase } from '@/modules/purchases/service';
 import {
   confirmPurchaseInvoice,
@@ -224,6 +228,143 @@ describe.skipIf(!enabled)('Operações integradas em PostgreSQL', () => {
       matchedProductId: rows[1].productId,
       unitsPerPackage: 6,
     });
+  });
+
+  it('edita o cadastro sem mexer no estoque, recusa códigos repetidos e isola revendas', async () => {
+    const original = await product();
+    await purchase(original.id, 5);
+    const other = await createProduct(a, {
+      name: 'Batom',
+      sku: crypto.randomUUID(),
+      barcode: '7891234567895',
+      referenceCost: '10',
+      salePrice: '20',
+    });
+    const edited = await updateProduct(a, {
+      id: original.id,
+      name: 'Perfume renomeado',
+      sku: original.sku,
+      brand: 'Marca nova',
+      category: 'Perfumes',
+      referenceCost: '41.50',
+      salePrice: '129.90',
+      minimumStock: '2',
+      active: 'on',
+    });
+    expect(edited).toMatchObject({ name: 'Perfume renomeado', stock: 5 });
+    expect(edited.salePrice.toFixed(2)).toBe('129.90');
+    expect(edited.brandId).toBeTruthy();
+    const log = await db.auditLog.findFirst({
+      where: {
+        referenceId: original.id,
+        description: { startsWith: 'Produto atualizado' },
+      },
+    });
+    expect(log?.description).toContain('129,90');
+    await expect(
+      updateProduct(a, {
+        id: original.id,
+        name: 'Perfume',
+        sku: other.sku,
+        referenceCost: '1',
+        salePrice: '2',
+      }),
+    ).rejects.toThrow('Já existe um produto com este código.');
+    await expect(
+      updateProduct(a, {
+        id: original.id,
+        name: 'Perfume',
+        sku: original.sku,
+        barcode: '7891234567895',
+        referenceCost: '1',
+        salePrice: '2',
+      }),
+    ).rejects.toThrow('código de barras');
+    await expect(
+      updateProduct(b, {
+        id: original.id,
+        name: 'Invasão',
+        sku: 'x',
+        referenceCost: '1',
+        salePrice: '2',
+      }),
+    ).rejects.toThrow('Produto não encontrado.');
+    const inactive = await updateProduct(a, {
+      id: original.id,
+      name: 'Perfume renomeado',
+      sku: original.sku,
+      referenceCost: '41.50',
+      salePrice: '129.90',
+    });
+    expect(inactive.active).toBe(false);
+  });
+
+  it('produto novo da nota sem preço entra no estoque, mas só é vendido após a edição', async () => {
+    // Revenda B: catálogo sem os itens que a nota de teste já criou na revenda A.
+    const recipientB = '11444777000161';
+    await db.organization.update({
+      where: { id: b.organizationId },
+      data: { cnpj: recipientB },
+    });
+    const source = invoiceFixture(7, recipientB);
+    const purchase = await confirmPurchaseInvoice(b, recipientB, {
+      xml: source.xml,
+      expectedKey: source.key,
+      idempotencyKey: crypto.randomUUID(),
+      items: [
+        {
+          line: 1,
+          unitsPerPackage: 1,
+          product: { kind: 'new', name: 'Perfume da nota', salePrice: '79.90' },
+        },
+        {
+          line: 2,
+          unitsPerPackage: 6,
+          product: { kind: 'new', name: 'Sabonete sem preço', salePrice: '' },
+        },
+      ],
+    });
+    const created = await db.purchaseItem.findMany({
+      where: { purchaseId: purchase.id },
+      include: { product: true },
+      orderBy: { quantity: 'asc' },
+    });
+    // Nome, quantidade e custo vêm da nota; o preço de revenda é opcional.
+    expect(
+      created.map(({ product: p }) => [
+        p.name,
+        p.stock,
+        p.referenceCost.toFixed(2),
+        p.salePrice.toFixed(2),
+      ]),
+    ).toEqual([
+      ['Perfume da nota', 3, '19.73', '79.90'],
+      ['Sabonete sem preço', 12, '3.40', '0.00'],
+    ]);
+    const soap = created[1].product;
+    const buyer = await db.customer.create({
+      data: { organizationId: b.organizationId, name: 'Cliente B' },
+    });
+    const sell = () =>
+      finalizeSale(b, {
+        idempotencyKey: crypto.randomUUID(),
+        customerId: buyer.id,
+        discount: '0',
+        // Quitada: venda em aberto mudaria os testes de lembrete de cobrança.
+        paid: '9.90',
+        method: 'PIX',
+        items: [{ productId: soap.id, quantity: 1 }],
+      });
+    await expect(sell()).rejects.toThrow('Defina o preço de revenda');
+    await updateProduct(b, {
+      id: soap.id,
+      name: soap.name,
+      sku: soap.sku,
+      referenceCost: '3.40',
+      salePrice: '9.90',
+      active: 'on',
+    });
+    expect((await sell()).total.toFixed(2)).toBe('9.90');
   });
 
   it('reverte cadastro novo e entrada se uma linha aponta para outra revenda', async () => {

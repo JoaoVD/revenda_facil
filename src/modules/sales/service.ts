@@ -85,6 +85,10 @@ export async function finalizeSale(actor: Actor, raw: unknown) {
       const p = products.find((p) => p.id === item.productId);
       if (!p || p.stock - p.reserved < item.quantity)
         throw new BusinessError('Estoque insuficiente. Revise o carrinho.');
+      if (!p.salePrice.gt(0))
+        throw new BusinessError(
+          `Defina o preço de revenda de ${p.name} em Produtos antes de vender.`,
+        );
       return {
         ...item,
         productName: p.name,

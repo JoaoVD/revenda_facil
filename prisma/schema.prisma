@@ -33,6 +33,16 @@ model Organization {
   fiscalSettings FiscalSettings?
 }
 
+/// Nome de usuário para entrar: o login troca o usuário pelo e-mail e
+/// confere a senha no Supabase Auth. Sempre em minúsculas.
+model UserLogin {
+  userId    String   @id
+  username  String   @unique
+  email     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Membership {
   id             String       @id @default(uuid())
   userId         String       @unique

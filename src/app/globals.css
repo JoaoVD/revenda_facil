@@ -1319,6 +1319,21 @@ td small {
   margin-top: 8px;
 }
 
+/* Caixa de seleção com rótulo na mesma linha */
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+}
+.check-row input {
+  width: 20px;
+  height: 20px;
+}
+
 /* Leitor de códigos pela câmera */
 .scanner-frame {
   position: relative;

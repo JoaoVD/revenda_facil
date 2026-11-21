@@ -4,10 +4,16 @@ import { useId, useRef, useState, type ReactNode } from 'react';
 export function ActionDialog({
   title,
   trigger,
+  triggerClassName = 'button',
+  triggerLabel,
   children,
 }: {
   title: string;
   trigger: string;
+  /** Classe do botão que abre (ex.: `small-button` dentro de tabelas). */
+  triggerClassName?: string;
+  /** Nome acessível quando o texto do botão se repete (ex.: "Editar"). */
+  triggerLabel?: string;
   children: ReactNode;
 }) {
   const id = useId();
@@ -32,7 +38,8 @@ export function ActionDialog({
     <>
       <button
         type="button"
-        className="button"
+        className={triggerClassName}
+        aria-label={triggerLabel}
         ref={opener}
         onClick={() => {
           dirty.current = false;

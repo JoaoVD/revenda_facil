@@ -141,9 +141,7 @@ try {
     await facts.getByText('12 un.').waitFor();
     await facts.getByText(/R\$\s*3,40/).waitFor();
     await facts.getByText(/R\$\s*40,82/).waitFor();
-    const resale = dialog.getByLabel(
-      'Preço de revenda (R$), definido por você',
-    );
+    const resale = dialog.getByLabel('Preço de revenda (R$), opcional');
     assert.equal(await resale.inputValue(), '');
     await resale.fill('9.90');
     await page.getByText('Entrada de 12 un.', { exact: false }).waitFor();

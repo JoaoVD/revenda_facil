@@ -154,7 +154,11 @@ export async function GET() {
       organizationId,
       owner: actor.organization.ownerName,
       serverAt: new Date().toISOString(),
-      products,
+      // Sem preço de revenda o produto não pode ser vendido no aparelho.
+      products: products.map((product) => ({
+        ...product,
+        active: product.active && product.salePrice.gt(0),
+      })),
       customers,
       sales,
       conflicts,

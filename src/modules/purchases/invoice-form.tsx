@@ -460,14 +460,17 @@ function InvoiceReview({
                   </div>
                 </dl>
                 <Field
-                  label="Preço de revenda (R$), definido por você"
+                  label="Preço de revenda (R$), opcional"
                   name={'price-' + item.line}
                   type="number"
-                  min="0"
+                  min="0.01"
                   max="9999999999.99"
                   step="0.01"
-                  required
                 />
+                <p className="hint">
+                  Pode deixar em branco e definir depois em Produtos → Editar.
+                  Sem preço, o produto não aparece nas vendas e pedidos.
+                </p>
               </div>
             )}
           </fieldset>

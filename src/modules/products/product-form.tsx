@@ -3,9 +3,27 @@ import { useRef } from 'react';
 import { CameraScanButton } from '@/components/camera-scanner';
 import { OperationForm } from '@/components/operation-form';
 import { Field } from '@/components/ui';
+/** Dados atuais do produto para a edição (valores já como texto). */
+export type EditableProduct = {
+  id: string;
+  name: string;
+  sku: string;
+  barcode: string;
+  brand: string;
+  category: string;
+  description: string;
+  referenceCost: string;
+  salePrice: string;
+  minimumStock: number;
+  active: boolean;
+};
+
+/** Cadastro novo ou, com `product`, edição do cadastro existente. */
 export function ProductForm({
   initialBarcode = '',
-}: { initialBarcode?: string } = {}) {
+  product,
+}: { initialBarcode?: string; product?: EditableProduct } = {}) {
+  const editing = Boolean(product);
   const barcodeArea = useRef<HTMLDivElement>(null);
   function fillSku(barcode: HTMLInputElement) {
     const sku = barcode.form?.querySelector<HTMLInputElement>('[name="sku"]');
@@ -21,12 +39,23 @@ export function ProductForm({
     input.form?.querySelector<HTMLInputElement>('[name="name"]')?.focus();
   }
   return (
-    <OperationForm operation="product" button="Cadastrar produto">
+    <OperationForm
+      operation={editing ? 'product-edit' : 'product'}
+      button={editing ? 'Salvar alterações' : 'Cadastrar produto'}
+      reset={!editing}
+      // Edição salva: fecha a janela; a lista já volta atualizada do servidor.
+      onSuccess={
+        editing
+          ? () => barcodeArea.current?.closest('dialog')?.close()
+          : undefined
+      }
+    >
+      {product && <input type="hidden" name="id" value={product.id} />}
       <div className="stack" ref={barcodeArea}>
         <Field
           label="Código de barras (opcional)"
           name="barcode"
-          defaultValue={initialBarcode}
+          defaultValue={product?.barcode ?? initialBarcode}
           maxLength={30}
           placeholder="Passe o produto no leitor ou digite o código"
           onBlur={(event) => fillSku(event.currentTarget)}
@@ -49,6 +78,7 @@ export function ProductForm({
       <Field
         label="Nome do produto"
         name="name"
+        defaultValue={product?.name}
         placeholder="Ex.: Perfume floral 100 ml"
         required
         minLength={2}
@@ -58,13 +88,14 @@ export function ProductForm({
         <Field
           label="Código interno (SKU)"
           name="sku"
-          defaultValue={initialBarcode}
+          defaultValue={product?.sku ?? initialBarcode}
           required
           maxLength={50}
         />
         <Field
           label="Custo de referência (R$)"
           name="referenceCost"
+          defaultValue={product?.referenceCost}
           type="number"
           min="0"
           step="0.01"
@@ -73,8 +104,13 @@ export function ProductForm({
         <Field
           label="Preço de venda (R$)"
           name="salePrice"
+          defaultValue={
+            product && Number(product.salePrice) > 0
+              ? product.salePrice
+              : undefined
+          }
           type="number"
-          min="0"
+          min="0.01"
           step="0.01"
           required
         />
@@ -84,7 +120,7 @@ export function ProductForm({
           type="number"
           min="0"
           step="1"
-          defaultValue="0"
+          defaultValue={String(product?.minimumStock ?? 0)}
           required
         />
       </div>
@@ -95,26 +131,45 @@ export function ProductForm({
           <Field
             label="Marca"
             name="brand"
+            defaultValue={product?.brand}
             placeholder="Ex.: Natura"
             maxLength={80}
           />
           <Field
             label="Categoria"
             name="category"
+            defaultValue={product?.category}
             placeholder="Ex.: Perfumes"
             maxLength={80}
           />
           <Field
             label="Descrição (opcional)"
             name="description"
+            defaultValue={product?.description}
             maxLength={500}
           />
         </div>
       </details>
-      <p className="hint">
-        O cadastro começa sem estoque. Registre uma compra para adicionar
-        unidades.
-      </p>
+      {product ? (
+        <>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              name="active"
+              defaultChecked={product.active}
+            />
+            Produto ativo (aparece nas vendas e pedidos)
+          </label>
+          <p className="hint">
+            O estoque não muda aqui: ele vem das compras, vendas e ajustes.
+          </p>
+        </>
+      ) : (
+        <p className="hint">
+          O cadastro começa sem estoque. Registre uma compra para adicionar
+          unidades.
+        </p>
+      )}
     </OperationForm>
   );
 }
