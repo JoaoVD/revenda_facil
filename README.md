@@ -25,7 +25,7 @@ npm start
 
 No PowerShell, use `npm.cmd` se o wrapper `npm.ps1` estiver bloqueado. Não use `prisma db push`: migrations incluem constraints SQL que protegem dinheiro e estoque. Aplique migrations após backup consistente.
 
-Supabase: habilite e-mail/senha e confirmação de e-mail; configure Site URL e redirects para `${APP_URL}/login`. As tabelas comerciais são acessadas pelo backend Prisma. Não exponha essas tabelas pela Data API sem política de isolamento adequada. Nunca use service role no frontend. Um usuário tem uma Membership nesta versão; organização é resolvida no servidor.
+Supabase: habilite e-mail/senha. A confirmação de e-mail é opcional: com **Confirm email** desligado (Authentication → Sign In / Providers → Email), o cadastro entra direto no app; ligado, a pessoa confirma pelo link antes de entrar. Sem confirmação, o sistema não garante que o e-mail pertence a quem se cadastrou; configure Site URL e redirects para `${APP_URL}/login`. As tabelas comerciais são acessadas pelo backend Prisma. Não exponha essas tabelas pela Data API sem política de isolamento adequada. Nunca use service role no frontend. Um usuário tem uma Membership nesta versão; organização é resolvida no servidor.
 
 ## Operação
 
