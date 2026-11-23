@@ -88,10 +88,13 @@ export async function loginAction(_: Result, form: FormData): Promise<Result> {
         input.data.email,
         input.data.username,
       ).catch(() => {});
+    // Confirmação de e-mail desligada no Supabase: a conta já vem com sessão,
+    // então entra direto (primeiro acesso leva ao cadastro da revenda).
+    if (!error && data.session) redirect('/');
     return {
       ok: !error,
       message: error
-        ? 'Não foi possível criar a conta. Verifique os dados e tente novamente.'
+        ? 'Não foi possível criar a conta. Confira os dados; se já tem conta, use Entrar.'
         : 'Conta solicitada. Confirme seu e-mail e depois entre com seu usuário e senha.',
     };
   }
